@@ -9,33 +9,62 @@ RUNTIME_DIR="$PROJECT_DIR/.runtime"
 PID_FILE="$RUNTIME_DIR/st-manager.pid"
 LOG_FILE="$RUNTIME_DIR/st-manager.log"
 CONFIG_FILE="$RUNTIME_DIR/oneclick.conf"
+
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-3888}"
 APP_URL="http://${HOST}:${PORT}"
+
 AUTO_OPEN="0"
 AUTO_UPDATE="1"
 REPO_UPDATED="0"
 
-mkdir -p "$RUNTIME_DIR"
+APP_DATA_ROOT="${ST_MANAGER_HOME:-$HOME/.st-resource-manager}"
 
-if [ -f "$CONFIG_FILE" ]; then
-  # shellcheck disable=SC1090
-  . "$CONFIG_FILE"
-fi
+ensure_runtime_dir() {
+  mkdir -p "$RUNTIME_DIR"
+}
 
-if [ -n "${ST_AUTO_OPEN:-}" ]; then
-  AUTO_OPEN="$ST_AUTO_OPEN"
-fi
+load_config() {
+  if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck disable=SC1090
+    . "$CONFIG_FILE"
+  fi
 
-if [ -n "${ST_AUTO_UPDATE:-}" ]; then
-  AUTO_UPDATE="$ST_AUTO_UPDATE"
-fi
+  if [ -n "${ST_AUTO_OPEN:-}" ]; then
+    AUTO_OPEN="$ST_AUTO_OPEN"
+  fi
+  if [ -n "${ST_AUTO_UPDATE:-}" ]; then
+    AUTO_UPDATE="$ST_AUTO_UPDATE"
+  fi
+}
 
 save_config() {
   cat > "$CONFIG_FILE" <<EOF
 AUTO_OPEN=${AUTO_OPEN}
 AUTO_UPDATE=${AUTO_UPDATE}
 EOF
+}
+
+ensure_first_install_dirs() {
+  mkdir -p "$PROJECT_DIR"
+  mkdir -p "$RUNTIME_DIR"
+
+  mkdir -p "$APP_DATA_ROOT/config"
+  mkdir -p "$APP_DATA_ROOT/state"
+  mkdir -p "$APP_DATA_ROOT/backups"
+  mkdir -p "$APP_DATA_ROOT/repos"
+  mkdir -p "$APP_DATA_ROOT/vault/files"
+  mkdir -p "$APP_DATA_ROOT/trash"
+  mkdir -p "$APP_DATA_ROOT/audit"
+
+  touch "$APP_DATA_ROOT/config/instances.json"
+  touch "$APP_DATA_ROOT/config/security.json"
+  touch "$APP_DATA_ROOT/config/app-settings.json"
+  touch "$APP_DATA_ROOT/state/write-queue.json"
+  touch "$APP_DATA_ROOT/state/scan-cache.json"
+  touch "$APP_DATA_ROOT/state/trash-index.json"
+  touch "$APP_DATA_ROOT/vault/meta.json"
+  touch "$APP_DATA_ROOT/audit/actions.log"
 }
 
 is_pid_running() {
@@ -70,11 +99,13 @@ prompt_auto_open_if_needed() {
   if [ -f "$CONFIG_FILE" ]; then
     return
   fi
+
   if [ ! -t 0 ]; then
     save_config
     return
   fi
-  echo "是否开启启动后自动打开浏览器？[y/N]"
+
+  echo "First run: enable auto-open browser after start? [y/N]"
   read -r answer
   case "${answer:-}" in
     y|Y|yes|YES)
@@ -87,84 +118,9 @@ prompt_auto_open_if_needed() {
   save_config
 }
 
-auto_update_repo() {
-  if [ "$AUTO_UPDATE" != "1" ]; then
-    echo "[更新] 自动更新已关闭"
-    return
-  fi
-
-  if ! command -v git >/dev/null 2>&1; then
-    echo "[更新] 未检测到 git，跳过自动更新"
-    return
-  fi
-
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "[更新] 当前目录不是 Git 仓库，跳过自动更新"
-    return
-  fi
-
-  if ! git remote get-url origin >/dev/null 2>&1; then
-    echo "[更新] 未配置 origin 远端，跳过自动更新"
-    return
-  fi
-
-  local branch
-  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  if [ -z "$branch" ] || [ "$branch" = "HEAD" ]; then
-    echo "[更新] 当前不是可跟踪分支，跳过自动更新"
-    return
-  fi
-
-  if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-    echo "[更新] 当前分支未设置上游，跳过自动更新"
-    return
-  fi
-
-  local dirty
-  dirty="$(git status --porcelain 2>/dev/null || true)"
-  if [ -n "$dirty" ]; then
-    echo "[更新] 检测到本地未提交修改，跳过自动拉取（避免覆盖本地改动）"
-    return
-  fi
-
-  echo "[更新] 检查远端更新..."
-  if ! git fetch --quiet --prune --all; then
-    echo "[更新] 拉取远端信息失败，继续使用本地代码"
-    return
-  fi
-
-  local local_sha remote_sha base_sha
-  local_sha="$(git rev-parse @)"
-  remote_sha="$(git rev-parse '@{u}')"
-  base_sha="$(git merge-base @ '@{u}')"
-
-  if [ "$local_sha" = "$remote_sha" ]; then
-    echo "[更新] 已是最新版本"
-    return
-  fi
-
-  if [ "$local_sha" = "$base_sha" ]; then
-    echo "[更新] 检测到新版本，执行 fast-forward 更新"
-    if git pull --ff-only; then
-      REPO_UPDATED="1"
-      echo "[更新] 更新完成"
-    else
-      echo "[更新] 自动更新失败，请手动执行 git pull"
-    fi
-    return
-  fi
-
-  if [ "$remote_sha" = "$base_sha" ]; then
-    echo "[更新] 本地版本领先远端，跳过拉取"
-    return
-  fi
-
-  echo "[更新] 本地与远端分叉，已跳过自动拉取，请手动处理合并"
-}
-
 ensure_termux_dependencies() {
   if ! command -v pkg >/dev/null 2>&1; then
-    echo "未检测到 pkg，请确认当前环境是 Termux。"
+    echo "pkg not found. Please run in Termux."
     exit 1
   fi
 
@@ -175,14 +131,89 @@ ensure_termux_dependencies() {
   command -v curl >/dev/null 2>&1 || missing=1
 
   if [ "$missing" -eq 1 ]; then
-    echo "[依赖] 安装 Termux 基础依赖（git/node/curl）"
+    echo "[deps] Installing git/node/curl ..."
     pkg install -y git nodejs-lts curl
   fi
 }
 
+auto_update_repo() {
+  if [ "$AUTO_UPDATE" != "1" ]; then
+    echo "[update] disabled"
+    return
+  fi
+
+  if ! command -v git >/dev/null 2>&1; then
+    echo "[update] git not found, skip"
+    return
+  fi
+
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "[update] current dir is not a git repo, skip"
+    return
+  fi
+
+  if ! git remote get-url origin >/dev/null 2>&1; then
+    echo "[update] origin is missing, skip"
+    return
+  fi
+
+  local branch
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  if [ -z "$branch" ] || [ "$branch" = "HEAD" ]; then
+    echo "[update] detached head, skip"
+    return
+  fi
+
+  if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    echo "[update] upstream not configured, skip"
+    return
+  fi
+
+  local dirty
+  dirty="$(git status --porcelain 2>/dev/null || true)"
+  if [ -n "$dirty" ]; then
+    echo "[update] local changes found, skip auto-pull"
+    return
+  fi
+
+  echo "[update] checking remote ..."
+  if ! git fetch --quiet --prune --all; then
+    echo "[update] fetch failed, continue with local code"
+    return
+  fi
+
+  local local_sha remote_sha base_sha
+  local_sha="$(git rev-parse @)"
+  remote_sha="$(git rev-parse '@{u}')"
+  base_sha="$(git merge-base @ '@{u}')"
+
+  if [ "$local_sha" = "$remote_sha" ]; then
+    echo "[update] already up to date"
+    return
+  fi
+
+  if [ "$local_sha" = "$base_sha" ]; then
+    echo "[update] new commits found, running git pull --ff-only"
+    if git pull --ff-only; then
+      REPO_UPDATED="1"
+      echo "[update] updated"
+    else
+      echo "[update] auto update failed, run git pull manually"
+    fi
+    return
+  fi
+
+  if [ "$remote_sha" = "$base_sha" ]; then
+    echo "[update] local branch is ahead, skip"
+    return
+  fi
+
+  echo "[update] branch diverged, skip auto-pull"
+}
+
 ensure_project_dependencies() {
   if [ "$REPO_UPDATED" = "1" ] || [ "${ST_FORCE_REBUILD:-0}" = "1" ]; then
-    echo "[项目] 检测到仓库更新，执行依赖同步并重新构建"
+    echo "[project] install + build (repo updated or force rebuild)"
     npm install
     npm run build
     return
@@ -190,15 +221,15 @@ ensure_project_dependencies() {
 
   if [ -f "dist/server/index.js" ] && [ -f "dist/client/index.html" ]; then
     if [ -d "node_modules" ] && [ "${ST_FORCE_INSTALL:-0}" != "1" ]; then
-      echo "[项目] 检测到预构建 dist，且 node_modules 已存在，跳过依赖安装"
+      echo "[project] dist and node_modules found, skip install/build"
     else
-      echo "[项目] 检测到预构建 dist，安装运行时依赖"
+      echo "[project] dist found, install runtime deps"
       npm install --omit=dev
     fi
     return
   fi
 
-  echo "[项目] 未检测到可用 dist，执行完整安装与构建"
+  echo "[project] dist missing, run full install + build"
   npm install
   npm run build
 }
@@ -216,23 +247,24 @@ wait_until_ready() {
 }
 
 start_service() {
+  ensure_first_install_dirs
   prompt_auto_open_if_needed
 
-  echo "[1/5] 检查 Termux 依赖"
+  echo "[1/5] check Termux dependencies"
   ensure_termux_dependencies
 
-  echo "[2/5] 自动检查仓库更新"
+  echo "[2/5] check repository update"
   auto_update_repo
 
   if is_pid_running; then
     local pid
     pid="$(cat "$PID_FILE")"
     if [ "$REPO_UPDATED" = "1" ]; then
-      echo "检测到服务运行中且仓库已更新，自动重启服务应用新版本"
+      echo "Service is running and repo updated. Restarting service ..."
       stop_service
     else
-      echo "服务已在后台运行，PID=$pid"
-      echo "访问地址：$APP_URL"
+      echo "Service already running. PID=$pid"
+      echo "URL: $APP_URL"
       open_app_url
       exit 0
     fi
@@ -240,26 +272,27 @@ start_service() {
 
   rm -f "$PID_FILE"
 
-  echo "[3/5] 准备项目依赖"
+  echo "[3/5] prepare project dependencies"
   ensure_project_dependencies
 
-  echo "[4/5] 后台启动服务"
-  nohup env HOST="$HOST" PORT="$PORT" node dist/server/index.js >>"$LOG_FILE" 2>&1 &
+  echo "[4/5] start backend in background"
+  nohup env HOST="$HOST" PORT="$PORT" ST_MANAGER_HOME="$APP_DATA_ROOT" node dist/server/index.js >>"$LOG_FILE" 2>&1 &
   local pid=$!
   echo "$pid" > "$PID_FILE"
 
   if ! kill -0 "$pid" >/dev/null 2>&1; then
-    echo "启动失败，请查看日志：$LOG_FILE"
+    echo "Start failed. Check log: $LOG_FILE"
     exit 1
   fi
 
-  echo "[5/5] 等待服务就绪"
+  echo "[5/5] wait for readiness"
   if wait_until_ready; then
-    echo "启动成功：$APP_URL"
-    echo "日志文件：$LOG_FILE"
+    echo "Started: $APP_URL"
+    echo "Data root: $APP_DATA_ROOT"
+    echo "Log file: $LOG_FILE"
     open_app_url
   else
-    echo "服务未在预期时间内就绪，请查看日志：$LOG_FILE"
+    echo "Service not ready in time. Check log: $LOG_FILE"
     exit 1
   fi
 }
@@ -267,9 +300,10 @@ start_service() {
 stop_service() {
   if ! is_pid_running; then
     rm -f "$PID_FILE"
-    echo "服务未运行"
+    echo "Service not running"
     return 0
   fi
+
   local pid
   pid="$(cat "$PID_FILE")"
   kill "$pid" >/dev/null 2>&1 || true
@@ -278,28 +312,30 @@ stop_service() {
     kill -9 "$pid" >/dev/null 2>&1 || true
   fi
   rm -f "$PID_FILE"
-  echo "服务已停止"
+  echo "Service stopped"
 }
 
 show_status() {
   if is_pid_running; then
-    echo "运行中：PID=$(cat "$PID_FILE")"
-    echo "地址：$APP_URL"
-    exit 0
+    echo "Running: PID=$(cat "$PID_FILE")"
+    echo "URL: $APP_URL"
+    echo "Data root: $APP_DATA_ROOT"
+    return 0
   fi
 
   if is_service_ready; then
-    echo "服务可访问，但未找到 PID 文件：$APP_URL"
-    exit 0
+    echo "Service reachable but PID file missing: $APP_URL"
+    echo "Data root: $APP_DATA_ROOT"
+    return 0
   fi
 
-  echo "未运行"
+  echo "Not running"
 }
 
 show_logs() {
   if [ ! -f "$LOG_FILE" ]; then
-    echo "暂无日志文件：$LOG_FILE"
-    exit 0
+    echo "No log file yet: $LOG_FILE"
+    return 0
   fi
   tail -n 120 "$LOG_FILE"
 }
@@ -310,23 +346,23 @@ config_auto_open() {
     on)
       AUTO_OPEN="1"
       save_config
-      echo "已开启自动跳转浏览器"
+      echo "Auto-open set to: ON"
       ;;
     off)
       AUTO_OPEN="0"
       save_config
-      echo "已关闭自动跳转浏览器"
+      echo "Auto-open set to: OFF"
       ;;
     show)
       if [ "$AUTO_OPEN" = "1" ]; then
-        echo "自动跳转：开启"
+        echo "Auto-open: ON"
       else
-        echo "自动跳转：关闭"
+        echo "Auto-open: OFF"
       fi
-      echo "配置文件：$CONFIG_FILE"
+      echo "Config file: $CONFIG_FILE"
       ;;
     *)
-      echo "用法: bash scripts/termux-oneclick.sh config auto-open [on|off|show]"
+      echo "Usage: bash scripts/termux-oneclick.sh config auto-open [on|off|show]"
       exit 1
       ;;
   esac
@@ -338,27 +374,37 @@ config_auto_update() {
     on)
       AUTO_UPDATE="1"
       save_config
-      echo "已开启自动更新检查"
+      echo "Auto-update set to: ON"
       ;;
     off)
       AUTO_UPDATE="0"
       save_config
-      echo "已关闭自动更新检查"
+      echo "Auto-update set to: OFF"
       ;;
     show)
       if [ "$AUTO_UPDATE" = "1" ]; then
-        echo "自动更新：开启"
+        echo "Auto-update: ON"
       else
-        echo "自动更新：关闭"
+        echo "Auto-update: OFF"
       fi
-      echo "配置文件：$CONFIG_FILE"
+      echo "Config file: $CONFIG_FILE"
       ;;
     *)
-      echo "用法: bash scripts/termux-oneclick.sh config auto-update [on|off|show]"
+      echo "Usage: bash scripts/termux-oneclick.sh config auto-update [on|off|show]"
       exit 1
       ;;
   esac
 }
+
+init_dirs_only() {
+  ensure_first_install_dirs
+  echo "Init completed:"
+  echo "  runtime: $RUNTIME_DIR"
+  echo "  data root: $APP_DATA_ROOT"
+}
+
+ensure_runtime_dir
+load_config
 
 case "$ACTION" in
   start)
@@ -377,6 +423,9 @@ case "$ACTION" in
   logs)
     show_logs
     ;;
+  init-dirs)
+    init_dirs_only
+    ;;
   config)
     case "${2:-}" in
       auto-open)
@@ -386,7 +435,7 @@ case "$ACTION" in
         config_auto_update "${3:-show}"
         ;;
       *)
-        echo "用法:"
+        echo "Usage:"
         echo "  bash scripts/termux-oneclick.sh config auto-open [on|off|show]"
         echo "  bash scripts/termux-oneclick.sh config auto-update [on|off|show]"
         exit 1
@@ -394,7 +443,7 @@ case "$ACTION" in
     esac
     ;;
   *)
-    echo "用法: bash scripts/termux-oneclick.sh [start|stop|restart|status|logs|config]"
+    echo "Usage: bash scripts/termux-oneclick.sh [start|stop|restart|status|logs|init-dirs|config]"
     exit 1
     ;;
 esac
