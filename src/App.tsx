@@ -342,7 +342,7 @@ export function App() {
             </button>
           </div>
 
-          <div className="m-profile-block">
+          <div className="m-profile-block m-profile-basic">
             <label className="m-profile-avatar-picker">
               {profileAvatar ? <img src={profileAvatar} alt="头像" /> : <span>{initials(profileName)}</span>}
               <input type="file" accept="image/*" onChange={(event) => void updateAvatar(event.target.files?.[0] ?? null)} />
@@ -485,9 +485,16 @@ export function App() {
       <section className="m-home-page">
         <section className="m-home-hero">
           <div className="m-home-hero-top">
-            <button type="button" className="m-profile-trigger" onClick={() => setShowProfileEditor(true)} aria-label="打开个人资料">
-              {profileAvatar ? <img src={profileAvatar} alt="头像" /> : <span>{initials(profileName)}</span>}
-            </button>
+            <div className="m-home-user">
+              <button type="button" className="m-profile-trigger" onClick={() => setShowProfileEditor(true)} aria-label="打开个人资料">
+                {profileAvatar ? <img src={profileAvatar} alt="头像" /> : <span>{initials(profileName)}</span>}
+              </button>
+              <div className="m-home-user-text">
+                <p className="m-home-owner">{profileName}</p>
+                <h2 className="m-home-name">{currentInstance?.name ?? "默认项目"}</h2>
+                <p className="m-home-sub">{currentInstance?.isRunning ? "当前酒馆项目（运行中）" : "当前酒馆项目（未运行）"}</p>
+              </div>
+            </div>
             <button
               type="button"
               className="m-home-close"
@@ -500,10 +507,6 @@ export function App() {
               刷新
             </button>
           </div>
-
-          <p className="m-home-owner">{profileName}</p>
-          <h2 className="m-home-name">{currentInstance?.name ?? "默认项目"}</h2>
-          <p className="m-home-sub">{currentInstance?.isRunning ? "当前酒馆项目（运行中）" : "当前酒馆项目（未运行）"}</p>
         </section>
 
         <section className="m-home-metrics">
@@ -521,45 +524,6 @@ export function App() {
             <p className="m-home-metric-label">资源总数</p>
             <p className="m-home-metric-value">{(dashboard?.selectedInstance?.resourceTotal ?? 0).toLocaleString("zh-CN")}</p>
           </div>
-        </section>
-
-        <section className="m-home-cockpit">
-          <button type="button" className="m-home-cockpit-card" onClick={() => setActivePanel("resources")}>
-            <div className="m-home-cockpit-head">
-              <p className="m-home-cockpit-eyebrow">资源管理</p>
-              <span>进入</span>
-            </div>
-            <h3>资源中心</h3>
-            <p className="m-home-cockpit-main">
-              {homeStatsNonZero.length > 0 ? `${homeStatsNonZero.length} 个分类有内容` : "当前暂无资源"}
-            </p>
-            <p className="m-home-cockpit-sub">
-              角色卡 {(dashboard?.resourceStats?.character ?? 0).toLocaleString("zh-CN")} · 世界书{" "}
-              {(dashboard?.resourceStats?.world ?? 0).toLocaleString("zh-CN")}
-            </p>
-            <p className="m-home-cockpit-sub">预设 {(dashboard?.resourceStats?.preset ?? 0).toLocaleString("zh-CN")} · 聊天记录 {(dashboard?.resourceStats?.chat ?? 0).toLocaleString("zh-CN")}</p>
-            <p className="m-home-cockpit-sub">主题美化 {beautifyCount.toLocaleString("zh-CN")} · 全局扩展 {(dashboard?.resourceStats?.prompt ?? 0).toLocaleString("zh-CN")}</p>
-          </button>
-
-          <button type="button" className="m-home-cockpit-card" onClick={() => setActivePanel("queue")}>
-            <div className="m-home-cockpit-head">
-              <p className="m-home-cockpit-eyebrow">分类数量</p>
-              <span>查看</span>
-            </div>
-            <h3>资源分类</h3>
-            {homeStatsTop.length > 0 ? (
-              <ul className="m-home-cockpit-list">
-                {homeStatsTop.map((item) => (
-                  <li key={item.key}>
-                    <span>{item.label}</span>
-                    <strong>{item.value.toLocaleString("zh-CN")}</strong>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="m-home-cockpit-empty">暂无记录</p>
-            )}
-          </button>
         </section>
 
         <article className="m-home-rec">
@@ -587,6 +551,45 @@ export function App() {
             </button>
           </div>
         </article>
+
+        <section className="m-home-cockpit">
+          <button type="button" className="m-home-cockpit-card" onClick={() => setActivePanel("resources")}>
+            <div className="m-home-cockpit-head">
+              <p className="m-home-cockpit-eyebrow">资源管理</p>
+              <span>进入</span>
+            </div>
+            <h3>资源中心</h3>
+            <p className="m-home-cockpit-main">
+              {homeStatsNonZero.length > 0 ? `${homeStatsNonZero.length} 个分类有内容` : "当前暂无资源"}
+            </p>
+            <p className="m-home-cockpit-sub">
+              角色卡 {(dashboard?.resourceStats?.character ?? 0).toLocaleString("zh-CN")} · 世界书{" "}
+              {(dashboard?.resourceStats?.world ?? 0).toLocaleString("zh-CN")}
+            </p>
+            <p className="m-home-cockpit-sub">预设 {(dashboard?.resourceStats?.preset ?? 0).toLocaleString("zh-CN")} · 聊天记录 {(dashboard?.resourceStats?.chat ?? 0).toLocaleString("zh-CN")}</p>
+            <p className="m-home-cockpit-sub">主题美化 {beautifyCount.toLocaleString("zh-CN")} · 全局扩展 {(dashboard?.resourceStats?.prompt ?? 0).toLocaleString("zh-CN")}</p>
+          </button>
+
+          <button type="button" className="m-home-cockpit-card" onClick={() => setActivePanel("resources")}>
+            <div className="m-home-cockpit-head">
+              <p className="m-home-cockpit-eyebrow">分类数量</p>
+              <span>查看</span>
+            </div>
+            <h3>资源分类</h3>
+            {homeStatsTop.length > 0 ? (
+              <ul className="m-home-cockpit-list">
+                {homeStatsTop.map((item) => (
+                  <li key={item.key}>
+                    <span>{item.label}</span>
+                    <strong>{item.value.toLocaleString("zh-CN")}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="m-home-cockpit-empty">暂无记录</p>
+            )}
+          </button>
+        </section>
       </section>
     );
   }
