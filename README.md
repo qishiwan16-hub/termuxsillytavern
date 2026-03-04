@@ -23,11 +23,39 @@
 
 ## 配置流程（从 0 到可用）
 
-### 1. 获取代码
+### 1. 获取代码（新手版）
+1. 先准备“仓库地址”（就是项目的下载地址）。
+在 GitHub/Gitee 项目页面点击 `Code`，复制 HTTPS 地址。
+
+示例地址（请替换成你自己的真实地址）：
+```text
+https://github.com/你的用户名/st-resource-manager.git
+```
+
+2. 打开 Termux，先回到 Home 目录：
 ```bash
-git clone <你的仓库地址> st-resource-manager
+cd ~
+```
+
+3. 执行克隆命令（把下面地址替换成你的仓库地址）：
+```bash
+git clone https://github.com/你的用户名/st-resource-manager.git st-resource-manager
+```
+
+4. 进入项目目录：
+```bash
 cd st-resource-manager
 ```
+
+5. 检查是否成功（能看到 `package.json`、`README.md` 就是成功）：
+```bash
+ls
+```
+
+常见报错处理：
+- `git: command not found`：先安装 Git，执行 `pkg install git`。
+- `Repository not found`：仓库地址写错，或私有仓库没有权限。
+- `destination path 'st-resource-manager' already exists`：目录已存在，换一个目录名或先删除旧目录。
 
 ### 2. 安装与构建
 方式 A：一键脚本（Termux 推荐）
