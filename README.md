@@ -1,41 +1,103 @@
-# ST Resource Manager (Termux + Vault)
+﻿# ST 资源管理器（Termux + Vault）
 
-Local-first SillyTavern resource manager WebApp.
-It supports instance resource management, file editing, import/export, plugin install, Git sync, and a separate Vault library.
+这是一个本地运行的 SillyTavern 资源管理 WebApp。  
+目标是无需打开 SillyTavern，也能完成资源管理、插件安装、导入导出、文件编辑、Vault 素材管理。
 
-## Features
-- Multi-instance support (default `~/SillyTavern`)
-- File tree browsing and editing (JSON validation)
-- Auto backup and restore
-- Queue writes when SillyTavern is running
-- ZIP import/export (instance + vault)
-- Plugin install (ZIP + Git)
-- Git sync for instance/vault (`clone`, `commit`, `pull`, `push`)
-- Vault library with favorite/apply/delete
-- Auth: setup password, login session, change password, enable/disable auth
-- Scan cache + incremental refresh + paged querying
+## 功能概览
+- 多实例管理（默认 `~/SillyTavern`，支持自定义路径）
+- 文件树浏览与文本编辑（JSON 自动校验）
+- 自动备份与回滚
+- SillyTavern 运行时写入排队
+- ZIP 导入导出（实例库 + Vault）
+- 插件安装（ZIP / Git）
+- Git 同步（实例 / Vault：`clone`、`commit`、`pull`、`push`）
+- Vault 素材库（收藏、取用、删除）
+- 认证系统（首次设密、登录会话、改密、认证开关）
+- 扫描缓存 + 增量刷新 + 分页查询
 
-## Quick Start (Termux)
+## 环境要求
+- Node.js `>= 22`
+- npm
+- Git
+- Termux（推荐）
+
+## 配置流程（从 0 到可用）
+
+### 1. 获取代码
 ```bash
-git clone <your-repo-url> st-resource-manager
+git clone <你的仓库地址> st-resource-manager
 cd st-resource-manager
+```
+
+### 2. 安装与构建
+方式 A：一键脚本（Termux 推荐）
+```bash
 bash scripts/install-termux.sh
+```
+
+方式 B：手动命令
+```bash
+npm install
+npm run build
+```
+
+### 3. 启动服务
+方式 A：脚本启动
+```bash
 bash scripts/start.sh
 ```
 
-Open:
+方式 B：手动启动
+```bash
+npm run start
+```
+
+默认访问地址：
 `http://127.0.0.1:3888`
 
-## Dev
+### 4. 首次认证配置
+1. 首次打开页面时，系统会要求设置访问密码。  
+2. 设置后自动进入系统，并保存登录会话。  
+3. 后续可在“设置”页执行：
+- 修改密码
+- 启用/关闭认证（可随时切换）
+
+## 实例配置流程
+1. 进入页面顶部实例区域。  
+2. 默认会有一个实例，路径通常是 `~/SillyTavern`。  
+3. 如需新增实例，填写：
+- 实例名称
+- 实例根目录  
+4. 点击“新增实例”，然后在下拉框切换实例。
+
+## Vault 配置流程
+1. 打开 `Vault` 标签页。  
+2. 可通过两种方式导入素材：
+- ZIP 导入
+- 本地路径导入  
+3. 设置“取用目标目录”（相对实例根目录）。  
+4. 点击“取用”即可将素材复制到当前实例目录（一次性复制，互不影响）。
+
+## 扫描缓存与增量刷新说明
+扫描页支持 3 种模式：
+- `缓存查询`：仅查询当前缓存，速度最快。
+- `增量刷新`：仅重扫变化分段，推荐日常使用。
+- `全量刷新`：重扫所有分段，适合首次构建缓存或大规模改动后。
+
+推荐使用顺序：
+1. 第一次用 `全量刷新`
+2. 日常用 `增量刷新`
+3. 翻页查看用 `缓存查询`
+
+## 常用开发命令
 ```bash
-npm install
 npm run dev
 npm run build
 npm run start
 npm run test
 ```
 
-## Data Paths
+## 数据目录
 - `~/.st-resource-manager/config/instances.json`
 - `~/.st-resource-manager/config/security.json`
 - `~/.st-resource-manager/state/write-queue.json`
@@ -45,49 +107,19 @@ npm run test
 - `~/.st-resource-manager/vault/`
 - `~/.st-resource-manager/audit/actions.log`
 
-Override root:
+如需修改数据根目录，设置环境变量：
 `ST_MANAGER_HOME=/path/to/custom/data`
 
-## Core APIs
-- Auth
-- `GET /api/auth/status`
-- `POST /api/auth/setup`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `POST /api/auth/change-password`
-- `POST /api/auth/set-enabled`
+## 常见问题
+- 启动失败：先执行 `npm run build` 再 `npm run start`。
+- 无法访问页面：确认地址是 `127.0.0.1:3888`，端口未被占用。
+- 登录失败：确认密码正确；改密后需要重新登录。
+- 扫描结果不更新：在扫描页切换到 `全量刷新` 再执行一次。
 
-- Instance
-- `GET /api/instances`
-- `POST /api/instances`
-- `PATCH /api/instances/:id`
-- `POST /api/instances/:id/scan` (offset/limit/q/type/includeDirs/refreshMode)
-- `GET /api/instances/:id/tree`
-- `GET /api/instances/:id/file`
-- `PUT /api/instances/:id/file`
-- `POST /api/instances/:id/import/zip`
-- `POST /api/instances/:id/export/zip`
-- `POST /api/instances/:id/plugins/install`
-- `POST /api/instances/:id/git/clone`
-- `POST /api/instances/:id/git/commit`
-- `POST /api/instances/:id/git/pull`
-- `POST /api/instances/:id/git/push`
+## 核心 API（简表）
+- 认证：`/api/auth/*`
+- 实例：`/api/instances/*`
+- 队列：`/api/queue/*`
+- 备份：`/api/backups/*`
+- Vault：`/api/vault/*`
 
-- Queue/Backup
-- `GET /api/queue`
-- `POST /api/queue/:id/cancel`
-- `GET /api/backups`
-- `POST /api/backups/restore`
-
-- Vault
-- `GET /api/vault/items`
-- `POST /api/vault/import/zip`
-- `POST /api/vault/import/path`
-- `POST /api/vault/export/zip`
-- `POST /api/vault/items/:id/apply`
-- `PATCH /api/vault/items/:id/meta`
-- `DELETE /api/vault/items/:id`
-- `POST /api/vault/git/clone`
-- `POST /api/vault/git/commit`
-- `POST /api/vault/git/pull`
-- `POST /api/vault/git/push`
