@@ -31,22 +31,32 @@ export function HomePage(props: HomePageProps): React.ReactNode {
   return (
     <section className="m-home-page">
       <section className="m-home-hero">
-        <div className="m-home-hero-top">
-          <div className="m-home-user">
-            <button type="button" className="m-profile-trigger" onClick={props.onOpenProfile} aria-label="打开个人资料">
-              {props.profileAvatar ? <img src={props.profileAvatar} alt="头像" /> : <span>{props.profileInitials}</span>}
-            </button>
-            <div className="m-home-user-card">
-              <p className="m-home-owner">{props.profileName}</p>
-              <h2 className="m-home-name">{props.projectName}</h2>
-              <p className="m-home-sub">
-                {props.projectRunning ? "当前酒馆项目（运行中）" : "当前酒馆项目（未运行）"}
-              </p>
-            </div>
+        <div className="m-home-hero-shell">
+          <div className="m-home-hero-meta">
+            <p className="m-home-hero-net">资源中心</p>
+            <p className="m-home-hero-power">{props.projectRunning ? "在线" : "离线"}</p>
           </div>
-          <button type="button" className="m-home-close" onClick={props.onRefresh} aria-label="刷新">
-            刷新
-          </button>
+
+          <div className="m-home-hero-top">
+            <div className="m-home-user">
+              <button type="button" className="m-profile-trigger" onClick={props.onOpenProfile} aria-label="打开个人资料">
+                {props.profileAvatar ? <img src={props.profileAvatar} alt="头像" /> : <span>{props.profileInitials}</span>}
+              </button>
+              <div className="m-home-user-card">
+                <p className="m-home-owner">{props.profileName}</p>
+                <h2 className="m-home-name">{props.projectName}</h2>
+                <p className="m-home-sub">
+                  {props.projectRunning ? "当前酒馆项目（运行中）" : "当前酒馆项目（未运行）"}
+                </p>
+                <div className="m-home-badge-row">
+                  <span className="m-home-badge">SillyTavern 项目卡</span>
+                </div>
+              </div>
+            </div>
+            <button type="button" className="m-home-close" onClick={props.onRefresh} aria-label="刷新">
+              刷新
+            </button>
+          </div>
         </div>
       </section>
 

@@ -742,11 +742,37 @@ body {
   gap: 4px;
 }
 
+.m-home-hero-shell {
+  border: 1px solid #e3e3e3;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #f7f7f7, #f3f3f3);
+  padding: 10px 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.m-home-hero-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #ececec;
+  padding-bottom: 6px;
+}
+
+.m-home-hero-net,
+.m-home-hero-power {
+  margin: 0;
+  color: #8a8a8a;
+  letter-spacing: 0.06em;
+  font-size: 12px;
+}
+
 .m-home-hero-top {
   margin-bottom: 0;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -763,34 +789,19 @@ body {
   display: grid;
   gap: 4px;
   align-content: center;
-  border: 1px solid #e2e2e2;
-  border-radius: 10px;
-  background: #f8f8f8;
-  padding: 8px 10px;
-  position: relative;
-}
-
-.m-home-user-card::before {
-  content: "";
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: 8px;
-  height: 1px;
-  background: #ececec;
 }
 
 .m-home-owner {
-  margin: 2px 0 0;
+  margin: 0;
   color: #8a8a8a;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
   font-size: 12px;
   text-transform: none;
 }
 
 .m-home-name {
-  margin: 1px 0 0;
-  font-size: clamp(26px, 7.8vw, 36px);
+  margin: 0;
+  font-size: clamp(28px, 8vw, 36px);
   line-height: 1.08;
   letter-spacing: 0.01em;
 }
@@ -800,6 +811,22 @@ body {
   font-size: clamp(13px, 4.2vw, 16px);
   color: #676767;
   line-height: 1.32;
+}
+
+.m-home-badge-row {
+  margin-top: 2px;
+}
+
+.m-home-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #bbbbbb;
+  border-radius: 10px;
+  background: #f8f8f8;
+  padding: 4px 10px;
+  color: #424242;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .m-home-path {
@@ -895,24 +922,36 @@ body {
 }
 
 .m-profile-trigger {
-  width: 66px;
-  height: 66px;
+  width: 72px;
+  height: 72px;
   border-radius: 999px;
-  border: 1px solid #d3d3d3;
-  background: #ececec;
+  border: 1.5px dashed #c5c5c5;
+  background: #efefef;
   color: #6f6f6f;
   display: grid;
   place-items: center;
   font-family: "Noto Serif SC", serif;
-  font-size: 24px;
+  font-size: 22px;
   overflow: hidden;
   padding: 0;
+  flex: none;
 }
 
 .m-profile-trigger img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.m-home-close {
+  border: 1px solid #cfcfcf;
+  background: #f7f7f7;
+  color: #2f2f2f;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1;
+  min-width: 54px;
 }
 
 .m-modal-mask {
@@ -1262,18 +1301,18 @@ body {
     gap: 8px;
   }
 
-  .m-home-user-card {
-    padding: 7px 9px;
+  .m-home-hero-shell {
+    padding: 9px 10px;
   }
 
   .m-home-name {
-    font-size: clamp(22px, 7vw, 30px);
+    font-size: clamp(24px, 7.2vw, 30px);
   }
 
   .m-profile-trigger {
-    width: 58px;
-    height: 58px;
-    font-size: 21px;
+    width: 64px;
+    height: 64px;
+    font-size: 20px;
   }
 
   .m-profile-basic {
