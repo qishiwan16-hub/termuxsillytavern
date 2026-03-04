@@ -23,39 +23,43 @@
 
 ## 配置流程（从 0 到可用）
 
-### 1. 获取代码（新手版）
-1. 先准备“仓库地址”（就是项目的下载地址）。
-在 GitHub/Gitee 项目页面点击 `Code`，复制 HTTPS 地址。
+### 1. 获取代码（这一步到底是做什么）
+这一步的目的：把“当前这个 ST 资源管理器项目”下载到手机 Termux 本地。  
+不是下载 SillyTavern 本体，也不是必须自己新建仓库。
 
-示例地址（请替换成你自己的真实地址）：
-```text
-https://github.com/你的用户名/st-resource-manager.git
-```
+是否需要你自己建仓库：
+- 普通使用者：不需要。直接克隆本项目仓库即可。
+- 你要二次开发并长期自己维护代码：才需要 fork 或新建自己的仓库。
 
-2. 打开 Termux，先回到 Home 目录：
+#### 方式 A（推荐）：直接克隆当前项目
+1. 在项目页面点击 `Code`，复制 HTTPS 地址（这是“当前项目”的地址）。
+
+2. 如果你就是要安装“当前这个项目”，直接复制下面命令，不需要改任何内容：
 ```bash
 cd ~
-```
-
-3. 执行克隆命令（把下面地址替换成你的仓库地址）：
-```bash
-git clone https://github.com/你的用户名/st-resource-manager.git st-resource-manager
-```
-
-4. 进入项目目录：
-```bash
+pkg install git -y
+REPO_URL="https://github.com/qishiwan16-hub/termuxsillytavern.git"
+git clone "$REPO_URL" st-resource-manager
 cd st-resource-manager
-```
-
-5. 检查是否成功（能看到 `package.json`、`README.md` 就是成功）：
-```bash
 ls
 ```
 
+3. `ls` 输出里看到 `package.json`、`README.md`、`scripts` 说明获取成功。
+4. 只有在你 fork 了自己的仓库时，才把 `REPO_URL` 改成你自己的地址。
+
+#### 方式 B：你已经有项目文件（例如别人发给你的 ZIP）
+1. 把 ZIP 解压到 Termux 的 Home 目录，解压后目录内必须有 `package.json`。
+2. 进入目录（目录名按你的实际名称）：
+```bash
+cd ~/st-resource-manager
+ls
+```
+3. 看到 `package.json` 即可继续下一步“安装与构建”。
+
 常见报错处理：
-- `git: command not found`：先安装 Git，执行 `pkg install git`。
-- `Repository not found`：仓库地址写错，或私有仓库没有权限。
-- `destination path 'st-resource-manager' already exists`：目录已存在，换一个目录名或先删除旧目录。
+- `git: command not found`：执行 `pkg install git -y` 安装 Git。
+- `Repository not found`：你填的不是“当前项目”的仓库地址，或私有仓库无权限。
+- `destination path 'st-resource-manager' already exists`：目录已存在，先删除旧目录或换目录名。
 
 ### 2. 安装与构建
 方式 A：一键脚本（Termux 推荐）
