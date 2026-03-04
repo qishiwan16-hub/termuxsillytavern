@@ -147,6 +147,16 @@ npm run test
 - 无法访问页面：确认地址是 `127.0.0.1:3888`，端口未被占用。
 - 登录失败：确认密码正确；改密后需要重新登录。
 - 扫描结果不更新：在扫描页切换到 `全量刷新` 再执行一次。
+- 构建时报错 `native Rollup build` / `throwUnsupportedError`：
+  含义是当前设备平台架构无法使用 Rollup 原生二进制。执行以下命令切换到 WASM 版本即可：
+```bash
+cd ~/st-resource-manager
+rm -rf node_modules package-lock.json
+npm install
+npm install -D "rollup@npm:@rollup/wasm-node@^4.59.0"
+npm run build
+```
+  只想先启动测试时，也可以跳过构建直接执行 `npm run start`（前提是 `dist/` 已存在）。
 
 ## 核心 API（简表）
 - 认证：`/api/auth/*`
