@@ -25,17 +25,77 @@ function emptyResourceStats(): Record<ResourceType, number> {
   };
 }
 
-async function detectVersion(instanceRootPath: string): Promise<string> {
-  const packageJsonPath = path.join(instanceRootPath, "package.json");
+function uniquePaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of paths) {
+    const normalized = path.resolve(item);
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      out.push(normalized);
+    }
+  }
+  return out;
+}
+
+function inferSillyTavernRoot(resourceRootPath: string): string {
+  const abs = path.resolve(resourceRootPath);
+  const parsed = path.parse(abs);
+  const rel = abs.slice(parsed.root.length);
+  const parts = rel.split(/[\\/]+/).filter(Boolean);
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const current = parts[index]?.toLowerCase();
+    const next = parts[index + 1]?.toLowerCase();
+    if (current === "data" && next === "default-user") {
+      const prefix = parts.slice(0, index);
+      return path.join(parsed.root, ...prefix);
+    }
+  }
+  return abs;
+}
+
+async function readPackageInfo(dirPath: string): Promise<{ name: string; version: string } | null> {
+  const packageJsonPath = path.join(dirPath, "package.json");
   if (!(await fs.pathExists(packageJsonPath))) {
-    return "unknown";
+    return null;
   }
   try {
-    const pkg = (await fs.readJson(packageJsonPath)) as { version?: string };
-    return pkg.version?.trim() || "unknown";
+    const pkg = (await fs.readJson(packageJsonPath)) as { name?: string; version?: string };
+    const version = pkg.version?.trim();
+    if (!version) {
+      return null;
+    }
+    return {
+      name: (pkg.name ?? "").trim().toLowerCase(),
+      version
+    };
   } catch {
-    return "unknown";
+    return null;
   }
+}
+
+async function detectVersion(instanceRootPath: string): Promise<string> {
+  const abs = path.resolve(instanceRootPath);
+  const stRoot = inferSillyTavernRoot(abs);
+  const candidates = uniquePaths([
+    stRoot,
+    abs,
+    path.resolve(abs, ".."),
+    path.resolve(abs, "..", "..")
+  ]);
+
+  let fallbackVersion: string | null = null;
+  for (const candidate of candidates) {
+    const pkg = await readPackageInfo(candidate);
+    if (!pkg) continue;
+    if (pkg.name.includes("sillytavern")) {
+      return pkg.version;
+    }
+    if (!fallbackVersion) {
+      fallbackVersion = pkg.version;
+    }
+  }
+  return fallbackVersion ?? "unknown";
 }
 
 function calcQueueStats(jobs: QueueJob[]): DashboardSummary["queueStats"] {
