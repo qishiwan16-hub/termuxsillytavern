@@ -212,9 +212,19 @@ auto_update_repo() {
 }
 
 ensure_project_dependencies() {
+  needs_rebuild_from_sources
   if [ "$REPO_UPDATED" = "1" ] || [ "${ST_FORCE_REBUILD:-0}" = "1" ]; then
     echo "[project] install + build (repo updated or force rebuild)"
     npm install
+    npm run build
+    return
+  fi
+
+  if [ "${REBUILD_NEEDED:-0}" = "1" ]; then
+    echo "[project] source changed since last build, rebuilding dist"
+    if [ ! -d "node_modules" ] || [ "${ST_FORCE_INSTALL:-0}" = "1" ]; then
+      npm install
+    fi
     npm run build
     return
   fi
@@ -232,6 +242,42 @@ ensure_project_dependencies() {
   echo "[project] dist missing, run full install + build"
   npm install
   npm run build
+}
+
+needs_rebuild_from_sources() {
+  REBUILD_NEEDED="0"
+  if [ ! -f "dist/server/index.js" ] || [ ! -f "dist/client/index.html" ]; then
+    REBUILD_NEEDED="1"
+    return
+  fi
+
+  local latest_src latest_dist
+  latest_src="$(
+    {
+      find src -type f 2>/dev/null || true
+      find server -type f 2>/dev/null || true
+      find scripts -type f 2>/dev/null || true
+      [ -f package.json ] && printf '%s\n' package.json
+      [ -f tsconfig.server.json ] && printf '%s\n' tsconfig.server.json
+      [ -f tsconfig.client.json ] && printf '%s\n' tsconfig.client.json
+    } | xargs -r stat -c '%Y' 2>/dev/null | sort -nr | head -n 1
+  )"
+
+  latest_dist="$(
+    {
+      find dist/client -type f 2>/dev/null || true
+      find dist/server -type f 2>/dev/null || true
+    } | xargs -r stat -c '%Y' 2>/dev/null | sort -nr | head -n 1
+  )"
+
+  if [ -z "$latest_src" ] || [ -z "$latest_dist" ]; then
+    REBUILD_NEEDED="1"
+    return
+  fi
+
+  if [ "$latest_src" -gt "$latest_dist" ]; then
+    REBUILD_NEEDED="1"
+  fi
 }
 
 wait_until_ready() {
