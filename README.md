@@ -27,24 +27,39 @@
 打开 Termux 后，直接执行：
 ```bash
 cd ~/st-resource-manager
-bash scripts/termux-oneclick.sh
+bash termux-oneclick.sh
 ```
+等价命令：`bash scripts/termux-oneclick.sh`
 脚本会自动完成：
 - 检查并安装 Termux 依赖（git/node/curl）
-- 自动判断是否需要构建（有 `dist` 则跳过构建）
+- 自动检查 Git 远端更新并拉取（`git pull --ff-only`）
+- 检测到更新后自动重新安装依赖并重建
+- 无更新时自动判断是否需要构建（有 `dist` 则可跳过构建）
 - 后台启动服务
 - 首次启动会询问是否开启“自动跳转浏览器”
 
 常用管理命令：
 ```bash
-bash scripts/termux-oneclick.sh status
-bash scripts/termux-oneclick.sh logs
-bash scripts/termux-oneclick.sh stop
-bash scripts/termux-oneclick.sh restart
-bash scripts/termux-oneclick.sh config auto-open show
-bash scripts/termux-oneclick.sh config auto-open on
-bash scripts/termux-oneclick.sh config auto-open off
+bash termux-oneclick.sh status
+bash termux-oneclick.sh logs
+bash termux-oneclick.sh stop
+bash termux-oneclick.sh restart
+bash termux-oneclick.sh config auto-open show
+bash termux-oneclick.sh config auto-open on
+bash termux-oneclick.sh config auto-open off
+bash termux-oneclick.sh config auto-update show
+bash termux-oneclick.sh config auto-update on
+bash termux-oneclick.sh config auto-update off
 ```
+
+如果你看到报错 `bash: scripts/termux-oneclick.sh: No such file or directory`：
+```bash
+cd ~/st-resource-manager
+git pull --ff-only
+ls scripts
+bash termux-oneclick.sh
+```
+如果 `ls scripts` 仍看不到该文件，说明本地目录不是最新仓库内容，按“获取代码”重新克隆一次项目。
 
 ### 1. 获取代码（这一步到底是做什么）
 这一步的目的：把“当前这个 ST 资源管理器项目”下载到手机 Termux 本地。  
@@ -85,9 +100,9 @@ ls
 - `destination path 'st-resource-manager' already exists`：目录已存在，先删除旧目录或换目录名。
 
 ### 2. 安装与构建
-方式 A：一键脚本（Termux 推荐，含自动后台启动）
+方式 A：一键脚本（Termux 推荐，含自动更新检查 + 自动后台启动）
 ```bash
-bash scripts/termux-oneclick.sh
+bash termux-oneclick.sh
 ```
 
 方式 B：安装脚本（仅安装与构建）

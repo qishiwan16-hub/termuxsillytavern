@@ -14,7 +14,7 @@
     "build:server": "tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
     "start:quick": "bash scripts/start-quick.sh",
-    "termux:oneclick": "bash scripts/termux-oneclick.sh",
+    "termux:oneclick": "bash termux-oneclick.sh",
     "test": "npm run build:server && cross-env ST_MANAGER_HOME=.test-data node dist/server/tests/run-tests.js"
   },
   "dependencies": {
