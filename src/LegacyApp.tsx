@@ -113,7 +113,7 @@ function Tree({
   );
 }
 
-export function App(): JSX.Element {
+export function LegacyApp(): JSX.Element {
   const [tab, setTab] = useState<TabKey>("instance");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("准备就绪");

@@ -8,6 +8,7 @@ import { createBackup, listBackups } from "../lib/backup.js";
 import { VaultService } from "../lib/vault-service.js";
 import { AuthService } from "../lib/auth-service.js";
 import { scanResourcesPaged } from "../lib/file-tree.js";
+import { TrashService } from "../lib/trash-service.js";
 
 async function resetDataRoot(): Promise<void> {
   await fs.remove(APP_PATHS.dataRoot);
@@ -144,6 +145,33 @@ async function testScanPaging(): Promise<void> {
   assert.ok(filtered.total >= 1);
 }
 
+async function testTrashLifecycle(): Promise<void> {
+  await resetDataRoot();
+  const vault = new VaultService();
+  await vault.init();
+  const trash = new TrashService();
+  await trash.init(30);
+
+  const imported = await vault.importBuffer("trash-target.txt", Buffer.from("abc"), ["test"]);
+  const detached = await vault.detachItem(imported.id);
+  const trashed = await trash.trashVaultItem(detached.item, detached.absPath);
+  assert.equal(trash.list({ offset: 0, limit: 10 }).items.length, 1);
+
+  const restored = await trash.restoreItem({
+    itemId: trashed.id,
+    resolveInstanceRoot: async () => {
+      throw new Error("not needed");
+    },
+    resolveVaultTargetPath: async (relPath) => vault.resolveAbsoluteByRelPath(relPath, true),
+    restoreVaultMeta: async (snapshot, restoredRelPath) =>
+      vault.restoreDetachedItem(snapshot, restoredRelPath)
+  });
+  assert.equal(restored.item.source, "vault");
+
+  const existed = vault.list({ q: "trash-target" });
+  assert.ok(existed.length >= 1);
+}
+
 async function run(): Promise<void> {
   const tests: Array<[string, () => Promise<void>]> = [
     ["Path Safety", testPathSafety],
@@ -151,7 +179,8 @@ async function run(): Promise<void> {
     ["Backup Rotation", testBackup],
     ["Vault Tag Search", testVaultTagSearch],
     ["Auth Lifecycle", testAuthLifecycle],
-    ["Scan Paging", testScanPaging]
+    ["Scan Paging", testScanPaging],
+    ["Trash Lifecycle", testTrashLifecycle]
   ];
 
   let passed = 0;

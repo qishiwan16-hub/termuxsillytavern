@@ -76,6 +76,10 @@ export class VaultService {
     });
   }
 
+  hasItem(itemId: string): boolean {
+    return this.items.some((item) => item.id === itemId);
+  }
+
   get(itemId: string): VaultItem {
     const item = this.items.find((entry) => entry.id === itemId);
     if (!item) {
@@ -87,6 +91,10 @@ export class VaultService {
   async resolveItemAbsolutePath(itemId: string): Promise<string> {
     const item = this.get(itemId);
     return resolveInsideRoot(APP_PATHS.vaultFilesDir, item.relPath, false);
+  }
+
+  async resolveAbsoluteByRelPath(relPath: string, allowNonExistent = false): Promise<string> {
+    return resolveInsideRoot(APP_PATHS.vaultFilesDir, relPath, allowNonExistent);
   }
 
   async importBuffer(filename: string, buffer: Buffer, tags: string[] = []): Promise<VaultItem> {
@@ -179,6 +187,33 @@ export class VaultService {
     await fs.remove(itemRoot);
     this.items = this.items.filter((entry) => entry.id !== itemId);
     await this.persist();
+  }
+
+  async detachItem(itemId: string): Promise<{ item: VaultItem; absPath: string }> {
+    const item = this.get(itemId);
+    const absPath = await resolveInsideRoot(APP_PATHS.vaultFilesDir, item.relPath, false);
+    this.items = this.items.filter((entry) => entry.id !== item.id);
+    await this.persist();
+    return {
+      item: { ...item },
+      absPath
+    };
+  }
+
+  async restoreDetachedItem(snapshot: VaultItem, restoredRelPath: string): Promise<VaultItem> {
+    let id = snapshot.id;
+    if (this.hasItem(id)) {
+      id = crypto.randomUUID();
+    }
+    const restored: VaultItem = {
+      ...snapshot,
+      id,
+      relPath: assertSafeRelativePath(restoredRelPath),
+      updatedAt: nowIso()
+    };
+    this.items.push(restored);
+    await this.persist();
+    return restored;
   }
 
   async applyToInstance(

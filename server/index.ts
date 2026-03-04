@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import Fastify from "fastify";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import { lookup as lookupMime } from "mime-types";
 import { simpleGit } from "simple-git";
 import { z } from "zod";
 import { APP_PATHS, ensureAppDirs } from "./lib/env.js";
@@ -21,7 +22,12 @@ import { isInstanceLikelyRunning } from "./lib/runtime.js";
 import { GitService } from "./lib/git-service.js";
 import { AuthService } from "./lib/auth-service.js";
 import { ScanCacheService } from "./lib/scan-cache-service.js";
-import type { QueueJob } from "./types.js";
+import { TrashService } from "./lib/trash-service.js";
+import { ResourceCenterService } from "./lib/resource-center-service.js";
+import { DashboardService } from "./lib/dashboard-service.js";
+import { AppSettingsService } from "./lib/app-settings-service.js";
+import { createMixedZip } from "./lib/mixed-zip-service.js";
+import type { QueueJob, ResourceItem } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +39,10 @@ const queueService = new QueueService();
 const gitService = new GitService();
 const authService = new AuthService();
 const scanCacheService = new ScanCacheService();
+const appSettingsService = new AppSettingsService();
+const trashService = new TrashService();
+const resourceCenterService = new ResourceCenterService(scanCacheService, vaultService);
+const dashboardService = new DashboardService(scanCacheService);
 
 const SaveFileSchema = z.object({
   relPath: z.string().min(1),
@@ -50,6 +60,28 @@ const PatchInstanceSchema = z.object({
   name: z.string().optional(),
   rootPath: z.string().optional(),
   layoutType: z.enum(["modern", "legacy", "custom"]).optional()
+});
+
+const ResourceRefSchema = z.object({
+  source: z.enum(["instance", "vault"]),
+  id: z.string().optional(),
+  instanceId: z.string().optional(),
+  relPath: z.string().optional()
+});
+
+const BatchApplySchema = z.object({
+  instanceId: z.string().min(1),
+  targetRelDir: z.string().min(1),
+  mode: z.literal("copy_once").default("copy_once"),
+  items: z.array(ResourceRefSchema).min(1)
+});
+
+const BatchExportSchema = z.object({
+  items: z.array(ResourceRefSchema).min(1)
+});
+
+const BatchDeleteSchema = z.object({
+  items: z.array(ResourceRefSchema).min(1)
 });
 
 function splitTagInput(input: unknown): string[] {
@@ -90,6 +122,99 @@ async function detectExtensionRelDir(rootPath: string): Promise<string> {
 
 function isProbablyJson(relPath: string): boolean {
   return relPath.toLowerCase().endsWith(".json");
+}
+
+function inferPreviewKindByPath(relPath: string, isDir: boolean): "text" | "json" | "image" | "none" {
+  if (isDir) return "none";
+  const lower = relPath.toLowerCase();
+  if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(lower)) return "image";
+  if (lower.endsWith(".json")) return "json";
+  if (/\.(txt|md|yaml|yml|ini|log|css|js|ts|html|xml|csv)$/.test(lower)) return "text";
+  return "none";
+}
+
+function parseResourceItemReference(input: z.infer<typeof ResourceRefSchema>): {
+  source: "instance" | "vault";
+  id: string;
+  instanceId?: string;
+  relPath?: string;
+} {
+  if (input.source === "vault") {
+    const id = input.id?.trim();
+    if (!id) {
+      throw new Error("Vault 资源缺少 id");
+    }
+    return { source: "vault", id };
+  }
+  const instanceId = input.instanceId?.trim();
+  const relPath = input.relPath?.trim();
+  if (!instanceId || !relPath) {
+    throw new Error("实例资源缺少 instanceId 或 relPath");
+  }
+  return {
+    source: "instance",
+    id: `${instanceId}:${relPath}`,
+    instanceId,
+    relPath
+  };
+}
+
+async function collectResourceForExport(ref: {
+  source: "instance" | "vault";
+  id: string;
+  instanceId?: string;
+  relPath?: string;
+}): Promise<{ absPath: string; zipRelPath: string }> {
+  if (ref.source === "vault") {
+    const item = vaultService.get(ref.id);
+    const absPath = await vaultService.resolveItemAbsolutePath(item.id);
+    return {
+      absPath,
+      zipRelPath: `vault/${item.relPath}`.replace(/\\/g, "/")
+    };
+  }
+  const instance = instanceStore.get(ref.instanceId ?? "");
+  const safeRelPath = assertSafeRelativePath(ref.relPath ?? "");
+  const absPath = await resolveInsideRoot(instance.rootPath, safeRelPath, false);
+  return {
+    absPath,
+    zipRelPath: `instance/${instance.id}/${safeRelPath}`.replace(/\\/g, "/")
+  };
+}
+
+async function loadResourceContent(item: ResourceItem): Promise<{
+  readOnly: boolean;
+  truncated: boolean;
+  content: string;
+}> {
+  if (item.source === "instance") {
+    const instance = instanceStore.get(item.instanceId ?? "");
+    const file = await readTextFile(instance.rootPath, item.relPath);
+    return {
+      readOnly: file.readOnly,
+      truncated: file.truncated,
+      content: file.content
+    };
+  }
+  const vaultItemId = item.id.replace(/^vault:/, "");
+  const absPath = await vaultService.resolveItemAbsolutePath(vaultItemId);
+  const stat = await fs.stat(absPath);
+  if (stat.isDirectory()) {
+    throw new Error("目录不支持文本读取");
+  }
+  if (stat.size > 5 * 1024 * 1024) {
+    return {
+      readOnly: true,
+      truncated: true,
+      content: ""
+    };
+  }
+  const content = await fs.readFile(absPath, "utf8").catch(() => "");
+  return {
+    readOnly: false,
+    truncated: false,
+    content
+  };
 }
 
 async function executeWriteJob(job: QueueJob): Promise<void> {
@@ -136,7 +261,10 @@ async function setup(): Promise<void> {
   await queueService.init();
   await authService.init();
   await scanCacheService.init();
+  await appSettingsService.init();
+  await trashService.init(appSettingsService.get().trashRetentionDays);
   await instanceStore.refreshRunningState();
+  await trashService.cleanupExpired();
 
   await app.register(multipart, {
     limits: {
@@ -284,6 +412,348 @@ async function setup(): Promise<void> {
       ...authService.status(),
       token: null
     };
+  });
+
+  app.get("/api/app-settings", async () => {
+    return appSettingsService.get();
+  });
+
+  app.patch("/api/app-settings", async (req) => {
+    const body = z
+      .object({
+        trashRetentionDays: z.number().int().min(1).max(365).optional(),
+        legacyUiEnabled: z.boolean().optional(),
+        autoOpenBrowser: z.boolean().optional(),
+        autoUpdateRepo: z.boolean().optional()
+      })
+      .parse(req.body ?? {});
+    const settings = await appSettingsService.patch(body);
+    await trashService.setRetentionDays(settings.trashRetentionDays);
+    await appendAuditLog("settings.patch", body);
+    return settings;
+  });
+
+  app.get("/api/dashboard/summary", async (req) => {
+    const query = z
+      .object({
+        instanceId: z.string().optional()
+      })
+      .parse(req.query ?? {});
+    await instanceStore.refreshRunningState();
+    const instances = instanceStore.list();
+    const queueJobs = queueService.list();
+    const vaultCount = vaultService.list().length;
+    const summary = await dashboardService.buildSummary({
+      selectedInstanceId: query.instanceId,
+      instances,
+      queueJobs,
+      vaultCount
+    });
+    return summary;
+  });
+
+  app.get("/api/resources", async (req) => {
+    const query = z
+      .object({
+        source: z.enum(["all", "instance", "vault"]).default("all"),
+        instanceId: z.string().optional(),
+        q: z.string().optional(),
+        type: z.string().optional(),
+        tags: z.string().optional(),
+        favorite: z.string().optional(),
+        offset: z.coerce.number().int().min(0).default(0),
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        refreshMode: z.enum(["none", "incremental", "full"]).default("incremental"),
+        includeDirs: z.string().optional()
+      })
+      .parse(req.query ?? {});
+    const includeDirs =
+      query.includeDirs === undefined ? false : query.includeDirs === "true" || query.includeDirs === "1";
+    const favorite =
+      query.favorite === undefined ? undefined : query.favorite === "true" || query.favorite === "1";
+    const result = await resourceCenterService.list(
+      {
+        source: query.source,
+        instanceId: query.instanceId,
+        q: query.q,
+        type: query.type,
+        tags: splitTagInput(query.tags),
+        favorite,
+        offset: query.offset,
+        limit: query.limit,
+        includeDirs,
+        refreshMode: query.refreshMode
+      },
+      instanceStore.list()
+    );
+    return result;
+  });
+
+  app.get("/api/resources/content", async (req, reply) => {
+    const query = z
+      .object({
+        source: z.enum(["instance", "vault"]),
+        instanceId: z.string().optional(),
+        relPath: z.string().optional(),
+        itemId: z.string().optional()
+      })
+      .parse(req.query ?? {});
+
+    if (query.source === "instance") {
+      if (!query.instanceId || !query.relPath) {
+        return reply.code(400).send({ error: "缺少 instanceId 或 relPath" });
+      }
+      const instance = instanceStore.get(query.instanceId);
+      const absPath = await resolveInsideRoot(instance.rootPath, query.relPath, false);
+      const stat = await fs.stat(absPath);
+      if (stat.isDirectory()) {
+        return reply.code(400).send({ error: "目录不支持内容预览" });
+      }
+      const mime = lookupMime(query.relPath) || "application/octet-stream";
+      reply.header("Content-Type", mime);
+      return reply.send(await fs.readFile(absPath));
+    }
+
+    if (!query.itemId) {
+      return reply.code(400).send({ error: "缺少 itemId" });
+    }
+    const vaultItem = vaultService.get(query.itemId);
+    const absPath = await vaultService.resolveItemAbsolutePath(query.itemId);
+    const stat = await fs.stat(absPath);
+    if (stat.isDirectory()) {
+      return reply.code(400).send({ error: "目录不支持内容预览" });
+    }
+    const mime = lookupMime(vaultItem.relPath) || "application/octet-stream";
+    reply.header("Content-Type", mime);
+    return reply.send(await fs.readFile(absPath));
+  });
+
+  app.post("/api/resources/batch/apply", async (req) => {
+    const body = BatchApplySchema.parse(req.body);
+    const refs = body.items.map(parseResourceItemReference);
+    const targetInstance = instanceStore.get(body.instanceId);
+    const resultItems: Array<{
+      source: "instance" | "vault";
+      id: string;
+      ok: boolean;
+      targetRelPath?: string;
+      error?: string;
+    }> = [];
+
+    for (const ref of refs) {
+      try {
+        if (ref.source === "vault") {
+          const applied = await vaultService.applyToInstance(ref.id, targetInstance.rootPath, body.targetRelDir);
+          resultItems.push({
+            source: ref.source,
+            id: ref.id,
+            ok: true,
+            targetRelPath: applied.targetRelPath
+          });
+          continue;
+        }
+
+        const sourceInstance = instanceStore.get(ref.instanceId ?? "");
+        const safeRelPath = assertSafeRelativePath(ref.relPath ?? "");
+        const sourceAbs = await resolveInsideRoot(sourceInstance.rootPath, safeRelPath, false);
+        const targetDirAbs = await resolveInsideRoot(targetInstance.rootPath, body.targetRelDir, true);
+        await fs.ensureDir(targetDirAbs);
+        const baseName = path.basename(safeRelPath);
+        let targetAbs = path.join(targetDirAbs, baseName);
+        if (await fs.pathExists(targetAbs)) {
+          targetAbs = path.join(targetDirAbs, `${Date.now()}-${baseName}`);
+        }
+        await fs.copy(sourceAbs, targetAbs, { overwrite: false, errorOnExist: false });
+        resultItems.push({
+          source: ref.source,
+          id: ref.id,
+          ok: true,
+          targetRelPath: path.relative(targetInstance.rootPath, targetAbs).replace(/\\/g, "/")
+        });
+      } catch (error) {
+        resultItems.push({
+          source: ref.source,
+          id: ref.id,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+    await scanCacheService.invalidateInstance(body.instanceId);
+    await appendAuditLog("resources.batch.apply", {
+      instanceId: body.instanceId,
+      targetRelDir: body.targetRelDir,
+      count: refs.length
+    });
+    return {
+      total: resultItems.length,
+      success: resultItems.filter((item) => item.ok).length,
+      failed: resultItems.filter((item) => !item.ok).length,
+      items: resultItems
+    };
+  });
+
+  app.post("/api/resources/batch/export/zip", async (req, reply) => {
+    const body = BatchExportSchema.parse(req.body);
+    const refs = body.items.map(parseResourceItemReference);
+    const entries = await Promise.all(refs.map((ref) => collectResourceForExport(ref)));
+    const zipBuffer = await createMixedZip(entries);
+    reply.header("Content-Type", "application/zip");
+    reply.header("Content-Disposition", `attachment; filename="resources-${Date.now()}.zip"`);
+    return reply.send(zipBuffer);
+  });
+
+  app.post("/api/resources/batch/delete", async (req) => {
+    const body = BatchDeleteSchema.parse(req.body);
+    const refs = body.items.map(parseResourceItemReference);
+    const affectedInstances = new Set<string>();
+    const resultItems: Array<{
+      source: "instance" | "vault";
+      id: string;
+      ok: boolean;
+      trashId?: string;
+      error?: string;
+    }> = [];
+
+    for (const ref of refs) {
+      try {
+        if (ref.source === "instance") {
+          const instance = instanceStore.get(ref.instanceId ?? "");
+          const trashItem = await trashService.trashInstancePath(
+            instance.id,
+            instance.rootPath,
+            ref.relPath ?? ""
+          );
+          affectedInstances.add(instance.id);
+          resultItems.push({
+            source: ref.source,
+            id: ref.id,
+            ok: true,
+            trashId: trashItem.id
+          });
+          continue;
+        }
+
+        const detached = await vaultService.detachItem(ref.id);
+        const trashItem = await trashService.trashVaultItem(detached.item, detached.absPath);
+        resultItems.push({
+          source: ref.source,
+          id: ref.id,
+          ok: true,
+          trashId: trashItem.id
+        });
+      } catch (error) {
+        resultItems.push({
+          source: ref.source,
+          id: ref.id,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    for (const instanceId of affectedInstances) {
+      await scanCacheService.invalidateInstance(instanceId);
+    }
+    await appendAuditLog("resources.batch.delete", {
+      count: refs.length,
+      success: resultItems.filter((item) => item.ok).length
+    });
+    return {
+      total: resultItems.length,
+      success: resultItems.filter((item) => item.ok).length,
+      failed: resultItems.filter((item) => !item.ok).length,
+      items: resultItems
+    };
+  });
+
+  app.get("/api/trash/items", async (req) => {
+    const query = z
+      .object({
+        source: z.enum(["instance", "vault"]).optional(),
+        offset: z.coerce.number().int().min(0).default(0),
+        limit: z.coerce.number().int().min(1).max(200).default(50)
+      })
+      .parse(req.query ?? {});
+    const result = trashService.list({
+      source: query.source,
+      offset: query.offset,
+      limit: query.limit
+    });
+    return {
+      ...result,
+      retentionDays: trashService.getRetentionDays()
+    };
+  });
+
+  app.post("/api/trash/restore", async (req) => {
+    const body = z
+      .object({
+        itemIds: z.array(z.string().min(1)).min(1)
+      })
+      .parse(req.body);
+    const restored: Array<{
+      itemId: string;
+      ok: boolean;
+      restoredRelPath?: string;
+      source?: "instance" | "vault";
+      error?: string;
+    }> = [];
+    const affectedInstances = new Set<string>();
+
+    for (const itemId of body.itemIds) {
+      try {
+        const result = await trashService.restoreItem({
+          itemId,
+          resolveInstanceRoot: async (instanceId) => instanceStore.get(instanceId).rootPath,
+          resolveVaultTargetPath: async (relPath) =>
+            vaultService.resolveAbsoluteByRelPath(relPath, true),
+          restoreVaultMeta: async (snapshot, restoredRelPath) =>
+            vaultService.restoreDetachedItem(snapshot, restoredRelPath)
+        });
+        if (result.item.source === "instance" && result.item.instanceId) {
+          affectedInstances.add(result.item.instanceId);
+        }
+        restored.push({
+          itemId,
+          ok: true,
+          restoredRelPath: result.restoredRelPath,
+          source: result.item.source
+        });
+      } catch (error) {
+        restored.push({
+          itemId,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+    for (const instanceId of affectedInstances) {
+      await scanCacheService.invalidateInstance(instanceId);
+    }
+    await appendAuditLog("trash.restore", {
+      count: body.itemIds.length,
+      success: restored.filter((item) => item.ok).length
+    });
+    return {
+      total: restored.length,
+      success: restored.filter((item) => item.ok).length,
+      failed: restored.filter((item) => !item.ok).length,
+      items: restored
+    };
+  });
+
+  app.delete("/api/trash/items/:id", async (req) => {
+    const params = z.object({ id: z.string().min(1) }).parse(req.params);
+    await trashService.deletePermanent(params.id);
+    await appendAuditLog("trash.delete", { itemId: params.id });
+    return { ok: true };
+  });
+
+  app.post("/api/trash/cleanup", async () => {
+    const result = await trashService.cleanupExpired();
+    await appendAuditLog("trash.cleanup", result);
+    return result;
   });
 
   app.get("/api/instances", async () => {
@@ -820,12 +1290,17 @@ async function setup(): Promise<void> {
 async function main(): Promise<void> {
   await setup();
 
-  const interval = setInterval(() => {
+  const queueInterval = setInterval(() => {
     void processQueue();
   }, 8000);
 
+  const trashCleanupInterval = setInterval(() => {
+    void trashService.cleanupExpired();
+  }, 6 * 60 * 60 * 1000);
+
   app.addHook("onClose", async () => {
-    clearInterval(interval);
+    clearInterval(queueInterval);
+    clearInterval(trashCleanupInterval);
   });
 
   const port = Number(process.env.PORT ?? 3888);

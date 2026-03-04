@@ -17,11 +17,14 @@ function buildPaths(rootPath: string) {
     reposDir: path.join(rootPath, "repos"),
     vaultDir: path.join(rootPath, "vault"),
     vaultFilesDir: path.join(rootPath, "vault", "files"),
+    trashDir: path.join(rootPath, "trash"),
     auditDir: path.join(rootPath, "audit"),
     instancesFile: path.join(rootPath, "config", "instances.json"),
     securityFile: path.join(rootPath, "config", "security.json"),
+    appSettingsFile: path.join(rootPath, "config", "app-settings.json"),
     queueFile: path.join(rootPath, "state", "write-queue.json"),
     scanCacheFile: path.join(rootPath, "state", "scan-cache.json"),
+    trashIndexFile: path.join(rootPath, "state", "trash-index.json"),
     vaultMetaFile: path.join(rootPath, "vault", "meta.json"),
     auditLogFile: path.join(rootPath, "audit", "actions.log")
   };
@@ -43,6 +46,7 @@ export async function ensureAppDirs(): Promise<void> {
     await fs.ensureDir(APP_PATHS.reposDir);
     await fs.ensureDir(APP_PATHS.vaultDir);
     await fs.ensureDir(APP_PATHS.vaultFilesDir);
+    await fs.ensureDir(APP_PATHS.trashDir);
     await fs.ensureDir(APP_PATHS.auditDir);
   };
 
