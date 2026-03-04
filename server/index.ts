@@ -1,4 +1,4 @@
-import path from "node:path";
+﻿import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import Fastify from "fastify";
@@ -10,7 +10,7 @@ import { APP_PATHS, ensureAppDirs } from "./lib/env.js";
 import { InstanceStore } from "./lib/instance-store.js";
 import { VaultService } from "./lib/vault-service.js";
 import { QueueService } from "./lib/queue-service.js";
-import { buildFileTree, scanResources } from "./lib/file-tree.js";
+import { buildFileTree } from "./lib/file-tree.js";
 import { appendAuditLog } from "./lib/audit.js";
 import { readMultipartToBuffer } from "./lib/upload.js";
 import { extractZipToRoot, createZipFromPaths } from "./lib/zip-service.js";
@@ -19,6 +19,8 @@ import { listBackups, restoreBackup } from "./lib/backup.js";
 import { resolveInsideRoot, assertSafeRelativePath } from "./lib/path-safety.js";
 import { isInstanceLikelyRunning } from "./lib/runtime.js";
 import { GitService } from "./lib/git-service.js";
+import { AuthService } from "./lib/auth-service.js";
+import { ScanCacheService } from "./lib/scan-cache-service.js";
 import type { QueueJob } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +31,8 @@ const instanceStore = new InstanceStore();
 const vaultService = new VaultService();
 const queueService = new QueueService();
 const gitService = new GitService();
+const authService = new AuthService();
+const scanCacheService = new ScanCacheService();
 
 const SaveFileSchema = z.object({
   relPath: z.string().min(1),
@@ -59,6 +63,14 @@ function splitTagInput(input: unknown): string[] {
       .filter(Boolean);
   }
   return [];
+}
+
+function readBearerToken(authorization?: string): string | undefined {
+  if (!authorization) {
+    return undefined;
+  }
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim();
 }
 
 async function detectExtensionRelDir(rootPath: string): Promise<string> {
@@ -93,6 +105,7 @@ async function executeWriteJob(job: QueueJob): Promise<void> {
     content,
     createBackupBeforeWrite: createBackup
   });
+  await scanCacheService.invalidateInstance(instanceId);
   await appendAuditLog("queue.write.done", { instanceId, relPath, jobId: job.id });
 }
 
@@ -112,7 +125,7 @@ async function processQueue(): Promise<void> {
       await executeWriteJob(job);
       return;
     }
-    throw new Error(`未实现的任务类型: ${job.type}`);
+    throw new Error(`Unsupported queue job type: ${job.type}`);
   });
 }
 
@@ -121,6 +134,8 @@ async function setup(): Promise<void> {
   await instanceStore.init();
   await vaultService.init();
   await queueService.init();
+  await authService.init();
+  await scanCacheService.init();
   await instanceStore.refreshRunningState();
 
   await app.register(multipart, {
@@ -129,11 +144,147 @@ async function setup(): Promise<void> {
     }
   });
 
+  const publicApiPaths = new Set([
+    "/api/health",
+    "/api/auth/status",
+    "/api/auth/setup",
+    "/api/auth/login",
+    "/api/auth/logout"
+  ]);
+
+  app.addHook("onRequest", async (req, reply) => {
+    const pathname = req.url.split("?")[0] ?? "";
+    if (!pathname.startsWith("/api/")) {
+      return;
+    }
+    if (publicApiPaths.has(pathname)) {
+      return;
+    }
+    const authHeader = typeof req.headers.authorization === "string" ? req.headers.authorization : undefined;
+    const tokenHeader =
+      typeof req.headers["x-st-token"] === "string" ? req.headers["x-st-token"] : undefined;
+    const token = readBearerToken(authHeader) ?? tokenHeader;
+    if (!authService.isRequestAuthorized(token)) {
+      return reply.code(401).send({
+        error: "UNAUTHORIZED",
+        message: "未授权访问，请先登录"
+      });
+    }
+  });
+
   app.get("/api/health", async () => ({
     ok: true,
     time: new Date().toISOString(),
     dataRoot: APP_PATHS.dataRoot
   }));
+
+  app.get("/api/auth/status", async () => {
+    const status = authService.status();
+    return {
+      ...status
+    };
+  });
+
+  app.post("/api/auth/setup", async (req, reply) => {
+    const status = authService.status();
+    if (status.passwordConfigured) {
+      return reply.code(400).send({ error: "已配置访问密码，请使用登录接口" });
+    }
+    const body = z.object({ password: z.string().min(6) }).parse(req.body);
+    await authService.setupPassword(body.password);
+    const token = await authService.login(body.password);
+    await appendAuditLog("auth.setup", {});
+    return reply.code(201).send({
+      enabled: true,
+      token
+    });
+  });
+
+  app.post("/api/auth/login", async (req, reply) => {
+    const status = authService.status();
+    if (!status.enabled) {
+      return reply.send({ enabled: false, token: null });
+    }
+    const body = z.object({ password: z.string().min(1) }).parse(req.body);
+    try {
+      const token = await authService.login(body.password);
+      await appendAuditLog("auth.login", {});
+      return reply.send({ enabled: true, token });
+    } catch (error) {
+      return reply.code(401).send({
+        error: error instanceof Error ? error.message : "登录失败"
+      });
+    }
+  });
+
+  app.post("/api/auth/logout", async (req) => {
+    const authHeader = typeof req.headers.authorization === "string" ? req.headers.authorization : undefined;
+    const tokenHeader =
+      typeof req.headers["x-st-token"] === "string" ? req.headers["x-st-token"] : undefined;
+    const token = readBearerToken(authHeader) ?? tokenHeader;
+    authService.logout(token);
+    await appendAuditLog("auth.logout", {});
+    return { ok: true };
+  });
+
+  app.post("/api/auth/change-password", async (req) => {
+    const body = z
+      .object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(6)
+      })
+      .parse(req.body);
+    await authService.changePassword(body.currentPassword, body.newPassword);
+    await appendAuditLog("auth.change-password", {});
+    return { ok: true };
+  });
+
+  app.post("/api/auth/set-enabled", async (req, reply) => {
+    const body = z
+      .object({
+        enabled: z.boolean(),
+        password: z.string().optional()
+      })
+      .parse(req.body);
+
+    if (body.enabled) {
+      const status = authService.status();
+      if (!status.passwordConfigured) {
+        return reply.code(400).send({ error: "尚未设置密码，无法启用认证" });
+      }
+
+      const authHeader = typeof req.headers.authorization === "string" ? req.headers.authorization : undefined;
+      const tokenHeader =
+        typeof req.headers["x-st-token"] === "string" ? req.headers["x-st-token"] : undefined;
+      const currentToken = readBearerToken(authHeader) ?? tokenHeader;
+
+      let token = currentToken;
+      if (!authService.isRequestAuthorized(currentToken)) {
+        if (!body.password) {
+          return reply.code(400).send({ error: "启用认证需要输入密码" });
+        }
+        try {
+          token = await authService.login(body.password);
+        } catch {
+          return reply.code(401).send({ error: "密码错误，无法启用认证" });
+        }
+      }
+
+      await authService.setEnabled(true);
+      await appendAuditLog("auth.set-enabled", { enabled: true });
+      return {
+        ...authService.status(),
+        token: token ?? null
+      };
+    }
+
+    await authService.setEnabled(false);
+    await appendAuditLog("auth.set-enabled", { enabled: false });
+    return {
+      ...authService.status(),
+      token: null
+    };
+  });
 
   app.get("/api/instances", async () => {
     await instanceStore.refreshRunningState();
@@ -157,17 +308,46 @@ async function setup(): Promise<void> {
 
   app.post("/api/instances/:id/scan", async (req) => {
     const params = z.object({ id: z.string().min(1) }).parse(req.params);
+    const query = z
+      .object({
+        offset: z.coerce.number().int().min(0).default(0),
+        limit: z.coerce.number().int().min(1).max(1000).default(200),
+        q: z.string().optional(),
+        type: z.string().optional(),
+        includeDirs: z.string().optional(),
+        refreshMode: z.enum(["none", "incremental", "full"]).default("incremental")
+      })
+      .parse(req.query ?? {});
+    const includeDirs =
+      query.includeDirs === undefined ? true : query.includeDirs === "true" || query.includeDirs === "1";
     const instance = instanceStore.get(params.id);
-    const items = await scanResources(instance.rootPath);
-    const summary = items.reduce<Record<string, number>>((acc, item) => {
-      acc[item.type] = (acc[item.type] ?? 0) + 1;
-      return acc;
-    }, {});
+    const cached = await scanCacheService.getOrRefresh(
+      params.id,
+      instance.rootPath,
+      query.refreshMode
+    );
+    const view = scanCacheService.query(cached.items, {
+      offset: query.offset,
+      limit: query.limit,
+      q: query.q,
+      type: query.type,
+      includeDirs
+    });
+
     return {
       instanceId: instance.id,
-      total: items.length,
-      summary,
-      items
+      offset: query.offset,
+      limit: query.limit,
+      q: query.q ?? "",
+      type: query.type ?? "",
+      refreshMode: query.refreshMode,
+      includeDirs,
+      total: view.total,
+      scanned: cached.items.length,
+      truncated: false,
+      summary: view.summary,
+      items: view.items,
+      cache: cached.cache
     };
   });
 
@@ -243,6 +423,7 @@ async function setup(): Promise<void> {
       content: payload.content,
       createBackupBeforeWrite: payload.createBackup
     });
+    await scanCacheService.invalidateInstance(params.id);
     await appendAuditLog("file.write", {
       instanceId: params.id,
       relPath: payload.relPath,
@@ -268,6 +449,7 @@ async function setup(): Promise<void> {
       uploaded.buffer,
       query.targetRelDir ?? ""
     );
+    await scanCacheService.invalidateInstance(params.id);
     await appendAuditLog("instance.import.zip", {
       instanceId: params.id,
       filename: uploaded.filename,
@@ -309,6 +491,7 @@ async function setup(): Promise<void> {
       const pluginName = path.basename(uploaded.filename, path.extname(uploaded.filename));
       const targetDir = `${extensionRelDir}/${pluginName}`;
       const count = await extractZipToRoot(instance.rootPath, uploaded.buffer, targetDir);
+      await scanCacheService.invalidateInstance(params.id);
       await appendAuditLog("plugin.install.zip", {
         instanceId: params.id,
         pluginName,
@@ -339,6 +522,7 @@ async function setup(): Promise<void> {
     );
     await fs.ensureDir(path.dirname(targetAbs));
     await simpleGit().clone(body.repoUrl, targetAbs);
+    await scanCacheService.invalidateInstance(params.id);
     await appendAuditLog("plugin.install.git", {
       instanceId: params.id,
       repoUrl: body.repoUrl,
@@ -372,6 +556,7 @@ async function setup(): Promise<void> {
     const params = z.object({ id: z.string().min(1) }).parse(req.params);
     const instance = instanceStore.get(params.id);
     const summary = await gitService.pull(params.id, instance.rootPath);
+    await scanCacheService.invalidateInstance(params.id);
     await appendAuditLog("git.pull", { instanceId: params.id, summary });
     return { summary };
   });
@@ -420,6 +605,7 @@ async function setup(): Promise<void> {
     const instance = instanceStore.get(body.instanceId);
     const targetAbs = await resolveInsideRoot(instance.rootPath, body.relPath, true);
     await restoreBackup(body.instanceId, body.relPath, body.backupFile, targetAbs);
+    await scanCacheService.invalidateInstance(body.instanceId);
     await appendAuditLog("backup.restore", {
       instanceId: body.instanceId,
       relPath: body.relPath,
@@ -521,6 +707,7 @@ async function setup(): Promise<void> {
       .parse(req.body);
     const instance = instanceStore.get(body.instanceId);
     const result = await vaultService.applyToInstance(params.id, instance.rootPath, body.targetRelDir);
+    await scanCacheService.invalidateInstance(body.instanceId);
     await appendAuditLog("vault.apply", {
       itemId: params.id,
       instanceId: body.instanceId,
@@ -642,8 +829,9 @@ async function main(): Promise<void> {
   });
 
   const port = Number(process.env.PORT ?? 3888);
+  const host = process.env.HOST ?? "127.0.0.1";
   await app.listen({
-    host: "127.0.0.1",
+    host,
     port
   });
 }
@@ -652,3 +840,4 @@ main().catch((error) => {
   app.log.error(error);
   process.exit(1);
 });
+

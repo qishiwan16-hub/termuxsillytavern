@@ -8,6 +8,15 @@ interface BuildTreeOptions {
   maxNodes?: number;
 }
 
+export interface ScanPageOptions {
+  offset?: number;
+  limit?: number;
+  q?: string;
+  type?: string;
+  includeDirs?: boolean;
+  maxVisited?: number;
+}
+
 export async function buildFileTree(
   rootPath: string,
   baseRelPath = "",
@@ -99,4 +108,97 @@ export async function scanResources(rootPath: string): Promise<ResourceScanItem[
 
   await walk(rootPath, "");
   return result;
+}
+
+export async function scanResourcesPaged(
+  rootPath: string,
+  options: ScanPageOptions = {}
+): Promise<{
+  total: number;
+  scanned: number;
+  truncated: boolean;
+  summary: Record<string, number>;
+  items: ResourceScanItem[];
+}> {
+  const offset = Math.max(0, options.offset ?? 0);
+  const limit = Math.max(1, Math.min(1000, options.limit ?? 200));
+  const keyword = options.q?.trim().toLowerCase() ?? "";
+  const typeFilter = options.type?.trim().toLowerCase();
+  const includeDirs = options.includeDirs ?? true;
+  const maxVisited = Math.max(1000, options.maxVisited ?? 200000);
+
+  let scanned = 0;
+  let total = 0;
+  let truncated = false;
+  const summary: Record<string, number> = {};
+  const items: ResourceScanItem[] = [];
+
+  function matchItem(item: ResourceScanItem): boolean {
+    if (!includeDirs && item.isDir) {
+      return false;
+    }
+    if (typeFilter && item.type.toLowerCase() !== typeFilter) {
+      return false;
+    }
+    if (keyword) {
+      const hitPath = item.relPath.toLowerCase().includes(keyword);
+      const hitType = item.type.toLowerCase().includes(keyword);
+      if (!hitPath && !hitType) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function walk(currentAbs: string, relPath: string): Promise<void> {
+    if (truncated) {
+      return;
+    }
+    const entries = await fs.readdir(currentAbs, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith(".git")) {
+        continue;
+      }
+      if (entry.name === "node_modules") {
+        continue;
+      }
+      scanned += 1;
+      if (scanned > maxVisited) {
+        truncated = true;
+        break;
+      }
+
+      const childRel = relPath ? `${relPath}/${entry.name}` : entry.name;
+      const childAbs = path.join(currentAbs, entry.name);
+      const item: ResourceScanItem = {
+        relPath: childRel,
+        isDir: entry.isDirectory(),
+        type: inferResourceTypeByPath(childRel)
+      };
+
+      if (matchItem(item)) {
+        total += 1;
+        summary[item.type] = (summary[item.type] ?? 0) + 1;
+        if (total > offset && items.length < limit) {
+          items.push(item);
+        }
+      }
+
+      if (entry.isDirectory()) {
+        await walk(childAbs, childRel);
+      }
+      if (truncated) {
+        break;
+      }
+    }
+  }
+
+  await walk(rootPath, "");
+  return {
+    total,
+    scanned,
+    truncated,
+    summary,
+    items
+  };
 }

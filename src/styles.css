@@ -275,6 +275,32 @@ select.input:focus {
   gap: 6px;
 }
 
+.small-input {
+  max-width: 120px;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.auth-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.auth-panel {
+  width: min(460px, 94vw);
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 248, 0.95);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
 @media (min-width: 980px) {
   .grid-two {
     grid-template-columns: 1fr 1fr;

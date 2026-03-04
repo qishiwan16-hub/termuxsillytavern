@@ -6,6 +6,8 @@ import { resolveInsideRoot } from "../lib/path-safety.js";
 import { QueueService } from "../lib/queue-service.js";
 import { createBackup, listBackups } from "../lib/backup.js";
 import { VaultService } from "../lib/vault-service.js";
+import { AuthService } from "../lib/auth-service.js";
+import { scanResourcesPaged } from "../lib/file-tree.js";
 
 async function resetDataRoot(): Promise<void> {
   await fs.remove(APP_PATHS.dataRoot);
@@ -69,11 +71,11 @@ async function testVaultTagSearch(): Promise<void> {
   const vault = new VaultService();
   await vault.init();
 
-  const itemA = await vault.importBuffer("hero-card.png", Buffer.from("a"), ["角色", "美化"]);
-  const itemB = await vault.importBuffer("world-book.json", Buffer.from("{}"), ["世界书"]);
-  await vault.updateMeta(itemB.id, { favorite: true, tags: ["世界书", "精选"] });
+  const itemA = await vault.importBuffer("hero-card.png", Buffer.from("a"), ["role", "style"]);
+  const itemB = await vault.importBuffer("world-book.json", Buffer.from("{}"), ["worldbook"]);
+  await vault.updateMeta(itemB.id, { favorite: true, tags: ["worldbook", "featured"] });
 
-  const byTag = vault.list({ tags: ["角色"] });
+  const byTag = vault.list({ tags: ["role"] });
   assert.equal(byTag.length, 1);
   assert.equal(byTag[0]?.id, itemA.id);
 
@@ -82,12 +84,74 @@ async function testVaultTagSearch(): Promise<void> {
   assert.equal(favoriteOnly[0]?.id, itemB.id);
 }
 
+async function testAuthLifecycle(): Promise<void> {
+  await resetDataRoot();
+  const auth = new AuthService();
+  await auth.init();
+
+  const initial = auth.status();
+  assert.equal(initial.enabled, false);
+  assert.equal(initial.passwordConfigured, false);
+
+  await auth.setupPassword("123456");
+  const setup = auth.status();
+  assert.equal(setup.enabled, true);
+  assert.equal(setup.passwordConfigured, true);
+
+  const token = await auth.login("123456");
+  assert.ok(token.length > 10);
+  assert.equal(auth.isRequestAuthorized(token), true);
+  auth.logout(token);
+  assert.equal(auth.isRequestAuthorized(token), false);
+
+  await auth.setEnabled(false);
+  assert.equal(auth.status().enabled, false);
+
+  await auth.setEnabled(true);
+  assert.equal(auth.status().enabled, true);
+}
+
+async function testScanPaging(): Promise<void> {
+  await resetDataRoot();
+  const root = path.join(APP_PATHS.dataRoot, "instance-scan");
+  await fs.ensureDir(path.join(root, "data/default-user/characters"));
+  await fs.ensureDir(path.join(root, "data/default-user/worlds"));
+  await fs.writeFile(path.join(root, "data/default-user/characters/a.json"), "{}", "utf8");
+  await fs.writeFile(path.join(root, "data/default-user/characters/b.json"), "{}", "utf8");
+  await fs.writeFile(path.join(root, "data/default-user/worlds/c.json"), "{}", "utf8");
+
+  const page1 = await scanResourcesPaged(root, {
+    offset: 0,
+    limit: 2,
+    includeDirs: false
+  });
+  assert.equal(page1.items.length, 2);
+  assert.ok(page1.total >= 3);
+
+  const page2 = await scanResourcesPaged(root, {
+    offset: 2,
+    limit: 2,
+    includeDirs: false
+  });
+  assert.ok(page2.items.length >= 1);
+
+  const filtered = await scanResourcesPaged(root, {
+    offset: 0,
+    limit: 50,
+    includeDirs: false,
+    type: "world"
+  });
+  assert.ok(filtered.total >= 1);
+}
+
 async function run(): Promise<void> {
   const tests: Array<[string, () => Promise<void>]> = [
-    ["路径安全", testPathSafety],
-    ["队列处理", testQueue],
-    ["备份轮转", testBackup],
-    ["Vault 标签检索", testVaultTagSearch]
+    ["Path Safety", testPathSafety],
+    ["Queue Processing", testQueue],
+    ["Backup Rotation", testBackup],
+    ["Vault Tag Search", testVaultTagSearch],
+    ["Auth Lifecycle", testAuthLifecycle],
+    ["Scan Paging", testScanPaging]
   ];
 
   let passed = 0;

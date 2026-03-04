@@ -19,7 +19,9 @@ function buildPaths(rootPath: string) {
     vaultFilesDir: path.join(rootPath, "vault", "files"),
     auditDir: path.join(rootPath, "audit"),
     instancesFile: path.join(rootPath, "config", "instances.json"),
+    securityFile: path.join(rootPath, "config", "security.json"),
     queueFile: path.join(rootPath, "state", "write-queue.json"),
+    scanCacheFile: path.join(rootPath, "state", "scan-cache.json"),
     vaultMetaFile: path.join(rootPath, "vault", "meta.json"),
     auditLogFile: path.join(rootPath, "audit", "actions.log")
   };
