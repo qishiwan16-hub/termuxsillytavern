@@ -55,11 +55,17 @@ bash termux-oneclick.sh config auto-update off
 如果你看到报错 `bash: scripts/termux-oneclick.sh: No such file or directory`：
 ```bash
 cd ~/st-resource-manager
-git pull --ff-only
-ls scripts
 bash termux-oneclick.sh
 ```
-如果 `ls scripts` 仍看不到该文件，说明本地目录不是最新仓库内容，按“获取代码”重新克隆一次项目。
+`termux-oneclick.sh` 已内置自动修复：会先尝试 `git pull --ff-only` 补齐脚本。
+如果自动修复失败，再执行完整重装：
+```bash
+cd ~
+rm -rf st-resource-manager
+git clone https://github.com/qishiwan16-hub/termuxsillytavern.git st-resource-manager
+cd st-resource-manager
+bash termux-oneclick.sh
+```
 
 ### 1. 获取代码（这一步到底是做什么）
 这一步的目的：把“当前这个 ST 资源管理器项目”下载到手机 Termux 本地。  
