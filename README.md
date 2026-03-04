@@ -23,6 +23,29 @@
 
 ## 配置流程（从 0 到可用）
 
+### 0. 一键启动（最简入口，推荐）
+打开 Termux 后，直接执行：
+```bash
+cd ~/st-resource-manager
+bash scripts/termux-oneclick.sh
+```
+脚本会自动完成：
+- 检查并安装 Termux 依赖（git/node/curl）
+- 自动判断是否需要构建（有 `dist` 则跳过构建）
+- 后台启动服务
+- 首次启动会询问是否开启“自动跳转浏览器”
+
+常用管理命令：
+```bash
+bash scripts/termux-oneclick.sh status
+bash scripts/termux-oneclick.sh logs
+bash scripts/termux-oneclick.sh stop
+bash scripts/termux-oneclick.sh restart
+bash scripts/termux-oneclick.sh config auto-open show
+bash scripts/termux-oneclick.sh config auto-open on
+bash scripts/termux-oneclick.sh config auto-open off
+```
+
 ### 1. 获取代码（这一步到底是做什么）
 这一步的目的：把“当前这个 ST 资源管理器项目”下载到手机 Termux 本地。  
 不是下载 SillyTavern 本体，也不是必须自己新建仓库。
@@ -62,18 +85,23 @@ ls
 - `destination path 'st-resource-manager' already exists`：目录已存在，先删除旧目录或换目录名。
 
 ### 2. 安装与构建
-方式 A：一键脚本（Termux 推荐）
+方式 A：一键脚本（Termux 推荐，含自动后台启动）
+```bash
+bash scripts/termux-oneclick.sh
+```
+
+方式 B：安装脚本（仅安装与构建）
 ```bash
 bash scripts/install-termux.sh
 ```
 
-方式 B：手动命令（构建链路已改为 esbuild，不走 Rollup）
+方式 C：手动命令（构建链路已改为 esbuild，不走 Rollup）
 ```bash
 npm install
 npm run build
 ```
 
-方式 C：快速启动（跳过构建）
+方式 D：快速启动（跳过构建）
 ```bash
 bash scripts/start-quick.sh
 ```
@@ -132,6 +160,7 @@ npm run start
 npm run dev
 npm run build
 npm run start
+npm run termux:oneclick
 npm run test
 ```
 
