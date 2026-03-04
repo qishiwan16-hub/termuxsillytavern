@@ -315,54 +315,60 @@ select.input:focus {
 /* Modern mobile-first UI */
 body {
   margin: 0;
-  background: #f3f3f3;
+  background: #f2f2f2;
   color: #191919;
   font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow-x: hidden;
 }
 
 .m-app {
   min-height: 100vh;
-  padding: 16px 14px 88px;
-  background: #f3f3f3;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(92px + env(safe-area-inset-bottom));
+  background: #f2f2f2;
 }
 
 .m-topbar {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
 }
 
 .m-topbar h1 {
-  margin: 6px 0;
-  font-size: clamp(30px, 8vw, 44px);
+  margin: 8px 0 10px;
+  font-size: clamp(38px, 11vw, 64px);
   line-height: 1;
   font-family: "Noto Serif SC", serif;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .m-label {
   margin: 0;
-  color: #8a8a8a;
+  color: #878787;
   letter-spacing: 0.2em;
-  font-size: 12px;
+  font-size: 14px;
+  text-transform: uppercase;
 }
 
 .m-subline {
   margin: 0;
-  color: #8a8a8a;
-  font-size: 13px;
+  color: #7c7c7c;
+  font-size: 15px;
+}
+
+.m-break {
+  overflow-wrap: anywhere;
 }
 
 .m-instance-strip {
-  margin-top: 14px;
+  margin-top: 12px;
   display: flex;
   gap: 8px;
 }
 
 .m-main {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .m-stack {
@@ -373,7 +379,7 @@ body {
 .m-card {
   border: 1px solid #e6e6e6;
   border-radius: 14px;
-  background: #f7f7f7;
+  background: #f5f5f5;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   padding: 14px;
   animation: m-fade-in 180ms ease;
@@ -382,7 +388,7 @@ body {
 .m-card h2 {
   margin: 0 0 8px;
   font-family: "Noto Serif SC", serif;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
 }
 
@@ -406,9 +412,9 @@ body {
 .m-input {
   width: 100%;
   min-width: 0;
-  border: 1px solid #e6e6e6;
-  background: #f9f9f9;
-  border-radius: 10px;
+  border: 1px solid #dbdbdb;
+  background: #f8f8f8;
+  border-radius: 12px;
   padding: 10px 12px;
   color: #191919;
   font-size: 14px;
@@ -423,10 +429,10 @@ body {
 .m-icon-btn,
 .m-link-btn,
 .m-chip-btn {
-  border: 1px solid #d6d6d6;
+  border: 1px solid #d0d0d0;
   background: #fafafa;
   color: #2f2f2f;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 8px 12px;
   font-size: 13px;
 }
@@ -458,7 +464,7 @@ body {
 }
 
 .m-icon-btn {
-  min-width: 62px;
+  min-width: 74px;
 }
 
 .m-actions-row {
@@ -533,7 +539,7 @@ body {
 .m-resource-card {
   border: 1px solid #e6e6e6;
   border-radius: 14px;
-  background: #f7f7f7;
+  background: #f5f5f5;
   padding: 12px;
   display: grid;
   gap: 8px;
@@ -594,9 +600,11 @@ body {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 0;
-  background: rgba(247, 247, 247, 0.95);
+  background: rgba(242, 242, 242, 0.96);
   border-top: 1px solid #e3e3e3;
   backdrop-filter: blur(8px);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 40;
 }
 
 .m-bottom-nav button {
@@ -605,11 +613,240 @@ body {
   padding: 12px 4px;
   font-size: 12px;
   color: #8a8a8a;
+  min-height: 48px;
 }
 
 .m-bottom-nav button.active {
   color: #1f1f1f;
   font-weight: 700;
+}
+
+.m-home-page {
+  position: relative;
+  padding-top: 8px;
+}
+
+.m-home-hero {
+  min-height: 210px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.m-home-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.m-home-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  background: #ececec;
+  border: 1px solid #d7d7d7;
+  color: #737373;
+  font-size: 16px;
+  display: grid;
+  place-items: center;
+  font-family: "Noto Serif SC", serif;
+}
+
+.m-home-close {
+  border: none;
+  background: transparent;
+  color: #141414;
+  font-size: 52px;
+  line-height: 0.8;
+  padding: 0;
+}
+
+.m-home-name {
+  margin: 0;
+  font-family: "Noto Serif SC", serif;
+  font-size: clamp(46px, 12vw, 66px);
+  line-height: 1.02;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.m-home-sub {
+  margin: 0;
+  color: #595959;
+  font-size: clamp(20px, 5.5vw, 33px);
+  line-height: 1.32;
+}
+
+.m-home-plate {
+  margin-top: 8px;
+  width: fit-content;
+  border: 1px solid #0f0f0f;
+  background: #111;
+  color: #fff;
+  border-radius: 4px;
+  padding: 14px 40px;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+}
+
+.m-home-instance-wrap {
+  margin-top: 20px;
+  margin-bottom: 16px;
+}
+
+.m-home-instance-select {
+  width: 100%;
+  border: 2px solid #2f2f2f;
+  background: #f2f2f2;
+  color: #222;
+  border-radius: 18px;
+  padding: 15px 18px;
+  font-size: 34px;
+  line-height: 1.2;
+}
+
+.m-home-metrics {
+  margin-top: 16px;
+  padding: 18px 0;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 0;
+}
+
+.m-home-metric {
+  padding: 0 2px;
+}
+
+.m-home-metric-label {
+  margin: 0;
+  color: #666;
+  letter-spacing: 0.15em;
+  font-size: 14px;
+}
+
+.m-home-metric-value {
+  margin: 10px 0 0;
+  font-family: "Noto Serif SC", serif;
+  font-size: clamp(50px, 13vw, 78px);
+  line-height: 0.92;
+  color: #151515;
+}
+
+.m-home-metric-value span {
+  font-family: "Noto Sans SC", sans-serif;
+  font-size: 0.45em;
+  color: #666;
+  margin-left: 6px;
+}
+
+.m-home-metric-divider {
+  background: #e3e3e3;
+}
+
+.m-home-float {
+  position: absolute;
+  left: 14px;
+  top: 434px;
+  width: 62px;
+  height: 62px;
+  border-radius: 999px;
+  border: none;
+  background: #8a8d92;
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.m-home-grid {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.m-home-panel {
+  min-height: 260px;
+  border: 1px solid #e2e2e2;
+  border-radius: 2px;
+  background: #f7f7f7;
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.m-home-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #595959;
+  font-size: 14px;
+}
+
+.m-home-panel-head button {
+  border: none;
+  background: transparent;
+  color: #7c7c7c;
+  font-size: 14px;
+}
+
+.m-home-panel-main {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.45;
+  color: #1f1f1f;
+  overflow-wrap: anywhere;
+}
+
+.m-home-panel-foot {
+  margin: 0;
+  color: #9a9a9a;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+}
+
+.m-home-rec {
+  margin-top: 14px;
+  border: 1px solid #e2e2e2;
+  background: #f7f7f7;
+  border-radius: 2px;
+  padding: 20px 16px;
+}
+
+.m-home-rec-label {
+  margin: 0;
+  color: #9f4b54;
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-home-rec-label .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #dc4657;
+}
+
+.m-home-rec-title {
+  margin: 16px 0 0;
+  font-family: "Noto Serif SC", serif;
+  font-size: 34px;
+  color: #1c1c1c;
+}
+
+.m-home-rec-time {
+  margin: 8px 0 0;
+  color: #818181;
+  font-size: 13px;
 }
 
 .m-drawer-mask,
@@ -698,15 +935,25 @@ body {
 
 .m-toast {
   position: fixed;
-  right: 10px;
-  top: 10px;
+  left: 50%;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
   border: 1px solid #dfdfdf;
-  background: #f7f7f7;
+  background: rgba(247, 247, 247, 0.98);
   border-radius: 12px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   color: #5e5e5e;
   font-size: 12px;
-  z-index: 30;
+  max-width: calc(100vw - 34px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 60;
+}
+
+.m-pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 @media (min-width: 860px) {
@@ -724,6 +971,48 @@ body {
     transform: translateX(-50%);
     border-left: 1px solid #e3e3e3;
     border-right: 1px solid #e3e3e3;
+  }
+  .m-home-float {
+    left: 22px;
+  }
+}
+
+@media (max-width: 420px) {
+  .m-home-instance-select {
+    font-size: 30px;
+  }
+
+  .m-home-name {
+    font-size: 44px;
+  }
+
+  .m-home-sub {
+    font-size: 22px;
+  }
+
+  .m-home-plate {
+    font-size: 24px;
+    padding: 12px 30px;
+  }
+
+  .m-home-float {
+    top: 408px;
+    width: 58px;
+    height: 58px;
+    font-size: 24px;
+  }
+
+  .m-home-grid {
+    gap: 8px;
+  }
+
+  .m-home-panel {
+    min-height: 230px;
+    padding: 12px;
+  }
+
+  .m-home-rec-title {
+    font-size: 30px;
   }
 }
 

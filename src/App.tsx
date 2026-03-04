@@ -65,15 +65,40 @@ interface Dashboard {
 }
 
 const TABS: Array<{ key: Tab; label: string }> = [
-  { key: "home", label: "Home" },
-  { key: "resources", label: "Resources" },
-  { key: "queue", label: "Queue" },
+  { key: "home", label: "首页" },
+  { key: "resources", label: "资源" },
+  { key: "queue", label: "队列" },
   { key: "git", label: "Git" },
-  { key: "settings", label: "Settings" }
+  { key: "settings", label: "设置" }
 ];
 
 function toVaultId(resourceId: string): string {
   return resourceId.replace(/^vault:/, "");
+}
+
+function toShortDate(value?: string): string {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function buildPlateCode(seed: string): string {
+  const source = seed || "ST0000";
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  let out = "";
+  for (let index = 0; index < 5; index += 1) {
+    out += chars[(hash + index * 17) % chars.length];
+  }
+  return `京A·${out}`;
 }
 
 export function App() {
@@ -88,7 +113,11 @@ export function App() {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState("");
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [resources, setResources] = useState<ResourceResp>({ items: [], total: 0, sourceSummary: { instance: 0, vault: 0 } });
+  const [resources, setResources] = useState<ResourceResp>({
+    items: [],
+    total: 0,
+    sourceSummary: { instance: 0, vault: 0 }
+  });
   const [queue, setQueue] = useState<QueueJob[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [source, setSource] = useState<Source>("all");
@@ -96,10 +125,37 @@ export function App() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [legacyMode, setLegacyMode] = useState(false);
   const [gitResult, setGitResult] = useState("");
-  const [toast, setToast] = useState("Ready");
+  const [toast, setToast] = useState("");
 
-  const currentInstance = useMemo(() => instances.find((item) => item.id === instanceId), [instances, instanceId]);
-  const selectedItems = useMemo(() => resources.items.filter((item) => selectedIds.includes(item.id)), [resources.items, selectedIds]);
+  const currentInstance = useMemo(
+    () => instances.find((item) => item.id === instanceId),
+    [instances, instanceId]
+  );
+  const selectedItems = useMemo(
+    () => resources.items.filter((item) => selectedIds.includes(item.id)),
+    [resources.items, selectedIds]
+  );
+  const plateCode = useMemo(() => buildPlateCode(instanceId), [instanceId]);
+  const queueHealth = useMemo(() => {
+    const total = dashboard?.queueStats.total ?? 0;
+    const blocked = dashboard?.queueStats.blocked ?? 0;
+    const failed = dashboard?.queueStats.failed ?? 0;
+    if (total === 0) {
+      return 100;
+    }
+    const healthy = Math.max(0, total - blocked - failed);
+    return Math.round((healthy / total) * 100);
+  }, [dashboard]);
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setToast("");
+    }, 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   async function safe<T>(fn: () => Promise<T>): Promise<T | undefined> {
     try {
@@ -116,22 +172,42 @@ export function App() {
 
   async function loadAll(): Promise<void> {
     const instancesResp = await safe(() => apiGet<{ items: Instance[] }>("/api/instances"));
-    if (!instancesResp) return;
+    if (!instancesResp) {
+      return;
+    }
+
     setInstances(instancesResp.items);
-    const nextId = instancesResp.items.some((item) => item.id === instanceId) ? instanceId : (instancesResp.items[0]?.id ?? "");
+    const nextId = instancesResp.items.some((item) => item.id === instanceId)
+      ? instanceId
+      : (instancesResp.items[0]?.id ?? "");
     setInstanceId(nextId);
 
-    const dashboardResp = await safe(() => apiGet<Dashboard>(`/api/dashboard/summary${nextId ? `?instanceId=${encodeURIComponent(nextId)}` : ""}`));
-    if (dashboardResp) setDashboard(dashboardResp);
+    const dashboardResp = await safe(
+      () => apiGet<Dashboard>(`/api/dashboard/summary${nextId ? `?instanceId=${encodeURIComponent(nextId)}` : ""}`)
+    );
+    if (dashboardResp) {
+      setDashboard(dashboardResp);
+    }
 
-    const resourcesResp = await safe(() => apiGet<ResourceResp>(`/api/resources?source=${source}&instanceId=${encodeURIComponent(nextId)}&q=${encodeURIComponent(query)}&offset=0&limit=50&refreshMode=incremental&includeDirs=false`));
-    if (resourcesResp) setResources(resourcesResp);
+    const resourcesResp = await safe(
+      () =>
+        apiGet<ResourceResp>(
+          `/api/resources?source=${source}&instanceId=${encodeURIComponent(nextId)}&q=${encodeURIComponent(query)}&offset=0&limit=50&refreshMode=incremental&includeDirs=false`
+        )
+    );
+    if (resourcesResp) {
+      setResources(resourcesResp);
+    }
 
     const queueResp = await safe(() => apiGet<{ items: QueueJob[] }>("/api/queue"));
-    if (queueResp) setQueue(queueResp.items);
+    if (queueResp) {
+      setQueue(queueResp.items);
+    }
 
     const settingsResp = await safe(() => apiGet<AppSettings>("/api/app-settings"));
-    if (settingsResp) setSettings(settingsResp);
+    if (settingsResp) {
+      setSettings(settingsResp);
+    }
   }
 
   useEffect(() => {
@@ -156,16 +232,424 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function renderHome(): React.ReactNode {
+    return (
+      <section className="m-home-page">
+        <section className="m-home-hero">
+          <div className="m-home-hero-top">
+            <div className="m-home-avatar" aria-hidden="true">
+              ST
+            </div>
+          <button
+            type="button"
+            className="m-home-close"
+            onClick={() => {
+              void loadAll();
+              setToast("已刷新");
+            }}
+            aria-label="刷新"
+          >
+            ×
+          </button>
+          </div>
+
+          <h2 className="m-home-name">{currentInstance?.name ?? "默认实例"}</h2>
+          <p className="m-home-sub">{currentInstance?.isRunning ? "运行中的 SillyTavern 实例" : "待机中的 SillyTavern 实例"}</p>
+
+          <button type="button" className="m-home-plate" onClick={() => setTab("resources")}>
+            {plateCode}
+          </button>
+        </section>
+
+        <section className="m-home-instance-wrap">
+          <select className="m-home-instance-select" value={instanceId} onChange={(event) => setInstanceId(event.target.value)}>
+            {instances.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </section>
+
+        <section className="m-home-metrics">
+          <div className="m-home-metric">
+            <p className="m-home-metric-label">队列健康度</p>
+            <p className="m-home-metric-value">
+              {queueHealth}
+              <span>%</span>
+            </p>
+          </div>
+
+          <div className="m-home-metric-divider" />
+
+          <div className="m-home-metric">
+            <p className="m-home-metric-label">资源总数</p>
+            <p className="m-home-metric-value">
+              {(dashboard?.selectedInstance?.resourceTotal ?? 0).toLocaleString("en-US")}
+            </p>
+          </div>
+        </section>
+
+        <button type="button" className="m-home-float" onClick={() => setTab("resources")} aria-label="跳转资源页">
+          ≡
+        </button>
+
+        <section className="m-home-grid">
+          <article className="m-home-panel">
+            <div className="m-home-panel-head">
+              <span>地点</span>
+              <button type="button" onClick={() => void loadAll()}>
+                查看
+              </button>
+            </div>
+            <p className="m-home-panel-main">{currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern"}</p>
+            <p className="m-home-panel-foot">VERSION {dashboard?.selectedInstance?.version ?? "unknown"}</p>
+          </article>
+
+          <article className="m-home-panel">
+            <div className="m-home-panel-head">
+              <span>载客</span>
+              <button type="button" onClick={() => setTab("queue")}>
+                查看
+              </button>
+            </div>
+            <p className="m-home-panel-main">{queue.length > 0 ? `排队任务 ${queue.length} 条` : "暂无记录"}</p>
+            <p className="m-home-panel-foot">FAILED {dashboard?.queueStats.failed ?? 0}</p>
+          </article>
+        </section>
+
+        <article className="m-home-rec">
+          <p className="m-home-rec-label">
+            <span className="dot" />
+            REC
+          </p>
+          <p className="m-home-rec-title">行车记录仪</p>
+          <p className="m-home-rec-time">最后同步：{toShortDate(dashboard?.queueStats.updatedAt)}</p>
+        </article>
+      </section>
+    );
+  }
+
+  function renderResources(): React.ReactNode {
+    return (
+      <section className="m-card">
+        <h2>资源</h2>
+        <div className="m-actions-row">
+          <select className="m-input" value={source} onChange={(event) => setSource(event.target.value as Source)}>
+            <option value="all">全部</option>
+            <option value="instance">实例</option>
+            <option value="vault">Vault</option>
+          </select>
+          <input className="m-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="关键词" />
+          <button type="button" className="m-btn" onClick={() => void loadAll()}>
+            搜索
+          </button>
+        </div>
+        <p className="m-muted">
+          Total: {resources.total} · Instance: {resources.sourceSummary.instance} · Vault: {resources.sourceSummary.vault}
+        </p>
+
+        <div className="m-actions-row">
+          <button type="button" className="m-btn m-btn-ghost" onClick={() => setSelectedIds(resources.items.map((item) => item.id))}>
+            选择本页
+          </button>
+          <button
+            type="button"
+            className="m-btn"
+            onClick={() =>
+              void safe(async () => {
+                if (!instanceId || selectedItems.length === 0) {
+                  return;
+                }
+                await apiPost("/api/resources/batch/apply", {
+                  instanceId,
+                  targetRelDir: "data/default-user/characters",
+                  mode: "copy_once",
+                  items: selectedItems.map((item) =>
+                    item.source === "vault"
+                      ? { source: "vault", id: toVaultId(item.id) }
+                      : { source: "instance", instanceId: item.instanceId, relPath: item.relPath }
+                  )
+                });
+                setToast("批量取用完成");
+                await loadAll();
+              })
+            }
+          >
+            批量取用
+          </button>
+          <button
+            type="button"
+            className="m-btn m-btn-ghost"
+            onClick={() =>
+              void safe(async () => {
+                if (selectedItems.length === 0) {
+                  return;
+                }
+                await downloadZip(
+                  "/api/resources/batch/export/zip",
+                  {
+                    items: selectedItems.map((item) =>
+                      item.source === "vault"
+                        ? { source: "vault", id: toVaultId(item.id) }
+                        : { source: "instance", instanceId: item.instanceId, relPath: item.relPath }
+                    )
+                  },
+                  `resources-${Date.now()}.zip`
+                );
+              })
+            }
+          >
+            导出 ZIP
+          </button>
+          <button
+            type="button"
+            className="m-btn m-btn-danger"
+            onClick={() =>
+              void safe(async () => {
+                if (selectedItems.length === 0) {
+                  return;
+                }
+                await apiPost("/api/resources/batch/delete", {
+                  items: selectedItems.map((item) =>
+                    item.source === "vault"
+                      ? { source: "vault", id: toVaultId(item.id) }
+                      : { source: "instance", instanceId: item.instanceId, relPath: item.relPath }
+                  )
+                });
+                setToast("已移入回收站");
+                await loadAll();
+              })
+            }
+          >
+            删除
+          </button>
+        </div>
+
+        <ul className="m-list-clean">
+          {resources.items.map((item) => (
+            <li key={item.id} className="m-resource-card">
+              <p className="m-muted">{item.title}</p>
+              <p className="m-muted m-break">{item.relPath}</p>
+              <div className="m-actions-row">
+                <label className="m-check">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.id)}
+                    onChange={() =>
+                      setSelectedIds((prev) =>
+                        prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
+                      )
+                    }
+                  />
+                  选择
+                </label>
+                {item.source === "vault" ? (
+                  <button
+                    type="button"
+                    className="m-btn m-btn-ghost"
+                    onClick={() =>
+                      void safe(async () => {
+                        await apiPatch(`/api/vault/items/${toVaultId(item.id)}/meta`, { favorite: !item.favorite });
+                        await loadAll();
+                      })
+                    }
+                  >
+                    {item.favorite ? "取消收藏" : "收藏"}
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
+  function renderQueue(): React.ReactNode {
+    return (
+      <section className="m-card">
+        <h2>队列</h2>
+        <ul className="m-list-clean">
+          {queue.map((job) => (
+            <li key={job.id} className="m-resource-card">
+              <p className="m-muted">
+                {job.type} · {job.status} · {job.reason ?? "-"}
+              </p>
+              <p className="m-muted">{toShortDate(job.updatedAt)}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
+  function renderGit(): React.ReactNode {
+    return (
+      <section className="m-card">
+        <h2>Git</h2>
+        <div className="m-actions-row">
+          <button
+            type="button"
+            className="m-btn"
+            onClick={() =>
+              void safe(async () => {
+                if (!instanceId) {
+                  return;
+                }
+                const result = await apiPost(`/api/instances/${instanceId}/git/pull`, {});
+                setGitResult(JSON.stringify(result, null, 2));
+                await loadAll();
+              })
+            }
+          >
+            拉取实例
+          </button>
+          <button
+            type="button"
+            className="m-btn m-btn-ghost"
+            onClick={() =>
+              void safe(async () => {
+                const result = await apiPost("/api/vault/git/pull", {});
+                setGitResult(JSON.stringify(result, null, 2));
+                await loadAll();
+              })
+            }
+          >
+            拉取 Vault
+          </button>
+        </div>
+        <pre className="m-muted m-pre">{gitResult || "暂无输出"}</pre>
+      </section>
+    );
+  }
+
+  function renderSettings(): React.ReactNode {
+    return (
+      <section className="m-card">
+        <h2>设置</h2>
+        <div className="m-actions-row">
+          <input
+            className="m-input"
+            type="password"
+            value={enablePassword}
+            onChange={(event) => setEnablePassword(event.target.value)}
+            placeholder="认证开关密码"
+          />
+          <button
+            type="button"
+            className="m-btn"
+            onClick={() =>
+              void safe(async () => {
+                await apiPost("/api/auth/set-enabled", {
+                  enabled: !authStatus.enabled,
+                  password: enablePassword || undefined
+                });
+                const status = await apiGet<AuthStatus>("/api/auth/status");
+                setAuthStatus(status);
+                setEnablePassword("");
+              })
+            }
+          >
+            {authStatus.enabled ? "关闭认证" : "启用认证"}
+          </button>
+        </div>
+
+        <div className="m-actions-row">
+          <input
+            className="m-input"
+            type="password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            placeholder="当前密码"
+          />
+          <input
+            className="m-input"
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            placeholder="新密码"
+          />
+          <button
+            type="button"
+            className="m-btn"
+            onClick={() =>
+              void safe(async () => {
+                await apiPost("/api/auth/change-password", { currentPassword, newPassword });
+                setCurrentPassword("");
+                setNewPassword("");
+                setToast("密码已修改");
+              })
+            }
+          >
+            修改密码
+          </button>
+        </div>
+
+        <div className="m-actions-row">
+          <label className="m-check">
+            <input
+              type="checkbox"
+              checked={settings?.autoOpenBrowser ?? false}
+              onChange={(event) =>
+                void safe(async () =>
+                  setSettings(await apiPatch("/api/app-settings", { autoOpenBrowser: event.target.checked }))
+                )
+              }
+            />
+            自动打开浏览器
+          </label>
+          <label className="m-check">
+            <input
+              type="checkbox"
+              checked={settings?.autoUpdateRepo ?? true}
+              onChange={(event) =>
+                void safe(async () =>
+                  setSettings(await apiPatch("/api/app-settings", { autoUpdateRepo: event.target.checked }))
+                )
+              }
+            />
+            自动更新仓库
+          </label>
+          <label className="m-check">
+            <input
+              type="checkbox"
+              checked={settings?.legacyUiEnabled ?? true}
+              onChange={(event) =>
+                void safe(async () =>
+                  setSettings(await apiPatch("/api/app-settings", { legacyUiEnabled: event.target.checked }))
+                )
+              }
+            />
+            显示旧版入口
+          </label>
+        </div>
+
+        <button type="button" className="m-btn m-btn-ghost" onClick={() => setLegacyMode(true)}>
+          打开旧版界面
+        </button>
+      </section>
+    );
+  }
+
   if (legacyMode) {
     return (
       <>
         <div className="m-app">
           <section className="m-card">
-            <h2>Legacy Mode</h2>
-            <button type="button" className="m-btn" onClick={() => setLegacyMode(false)}>Back</button>
+            <h2>旧版模式</h2>
+            <button type="button" className="m-btn" onClick={() => setLegacyMode(false)}>
+              返回
+            </button>
           </section>
         </div>
-        <Suspense fallback={<div className="m-app"><section className="m-card">Loading legacy UI...</section></div>}>
+        <Suspense
+          fallback={
+            <div className="m-app">
+              <section className="m-card">正在加载旧版界面...</section>
+            </div>
+          }
+        >
           <LegacyApp />
         </Suspense>
       </>
@@ -176,28 +660,62 @@ export function App() {
     return (
       <div className="m-auth-wrap">
         <section className="m-auth-card">
-          <h2>ST Resource Manager</h2>
-          {authMode === "checking" ? <p className="m-muted">Initializing...</p> : null}
+          <h2>ST 资源管理器</h2>
+          {authMode === "checking" ? <p className="m-muted">初始化中...</p> : null}
           {authMode === "setup" ? (
             <>
-              <input className="m-input" type="password" value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder="Set password" />
-              <button type="button" className="m-btn" onClick={() => void safe(async () => {
-                const result = await apiPost<{ token: string }>("/api/auth/setup", { password: setupPassword });
-                if (result.token) setAuthToken(result.token);
-                setAuthMode("ready");
-                await loadAll();
-              })}>Setup</button>
+              <input
+                className="m-input"
+                type="password"
+                value={setupPassword}
+                onChange={(event) => setSetupPassword(event.target.value)}
+                placeholder="设置密码"
+              />
+              <button
+                type="button"
+                className="m-btn"
+                onClick={() =>
+                  void safe(async () => {
+                    const result = await apiPost<{ token: string }>("/api/auth/setup", { password: setupPassword });
+                    if (result.token) {
+                      setAuthToken(result.token);
+                    }
+                    setAuthMode("ready");
+                    await loadAll();
+                  })
+                }
+              >
+                完成设置
+              </button>
             </>
           ) : null}
           {authMode === "login" ? (
             <>
-              <input className="m-input" type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Password" />
-              <button type="button" className="m-btn" onClick={() => void safe(async () => {
-                const result = await apiPost<{ token: string | null }>("/api/auth/login", { password: loginPassword });
-                if (result.token) setAuthToken(result.token);
-                setAuthMode("ready");
-                await loadAll();
-              })}>Login</button>
+              <input
+                className="m-input"
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                placeholder="输入密码"
+              />
+              <button
+                type="button"
+                className="m-btn"
+                onClick={() =>
+                  void safe(async () => {
+                    const result = await apiPost<{ token: string | null }>("/api/auth/login", {
+                      password: loginPassword
+                    });
+                    if (result.token) {
+                      setAuthToken(result.token);
+                    }
+                    setAuthMode("ready");
+                    await loadAll();
+                  })
+                }
+              >
+                登录
+              </button>
             </>
           ) : null}
           <p className="m-muted">{toast}</p>
@@ -208,37 +726,57 @@ export function App() {
 
   return (
     <div className="m-app">
-      <header className="m-topbar">
-        <div>
-          <p className="m-label">ST RESOURCE MANAGER</p>
-          <h1>Resource Center</h1>
-          <p className="m-subline">{currentInstance?.name ?? "-"} · {currentInstance?.isRunning ? "Running" : "Stopped"}</p>
-          <p className="m-subline">{currentInstance?.rootPath ?? "-"}</p>
-        </div>
-        <button type="button" className="m-icon-btn" onClick={() => void loadAll()}>Refresh</button>
-      </header>
+      {tab !== "home" ? (
+        <>
+          <header className="m-topbar">
+            <div>
+              <p className="m-label">ST RESOURCE MANAGER</p>
+              <h1>资源中心</h1>
+              <p className="m-subline">
+                {currentInstance?.name ?? "-"} · {currentInstance?.isRunning ? "运行中" : "未运行"}
+              </p>
+              <p className="m-subline m-break">{currentInstance?.rootPath ?? "-"}</p>
+            </div>
+            <button
+              type="button"
+              className="m-icon-btn"
+              onClick={() => {
+                void loadAll();
+                setToast("已刷新");
+              }}
+            >
+              刷新
+            </button>
+          </header>
 
-      <section className="m-instance-strip">
-        <select className="m-input" value={instanceId} onChange={(e) => setInstanceId(e.target.value)}>
-          {instances.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-      </section>
+          <section className="m-instance-strip">
+            <select className="m-input" value={instanceId} onChange={(event) => setInstanceId(event.target.value)}>
+              {instances.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </section>
+        </>
+      ) : null}
 
       <main className="m-main">
-        {tab === "home" ? <section className="m-card"><h2>Dashboard</h2><p className="m-muted">Version: {dashboard?.selectedInstance?.version ?? "unknown"}</p><p className="m-muted">Resources: {dashboard?.selectedInstance?.resourceTotal ?? 0}</p><p className="m-muted">Queue: {dashboard?.queueStats.total ?? 0} (blocked {dashboard?.queueStats.blocked ?? 0}, failed {dashboard?.queueStats.failed ?? 0})</p></section> : null}
-
-        {tab === "resources" ? <section className="m-card"><h2>Resources</h2><div className="m-actions-row"><select className="m-input" value={source} onChange={(e) => setSource(e.target.value as Source)}><option value="all">all</option><option value="instance">instance</option><option value="vault">vault</option></select><input className="m-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="keyword" /><button type="button" className="m-btn" onClick={() => void loadAll()}>Search</button></div><p className="m-muted">Total: {resources.total} · Instance: {resources.sourceSummary.instance} · Vault: {resources.sourceSummary.vault}</p><div className="m-actions-row"><button type="button" className="m-btn m-btn-ghost" onClick={() => setSelectedIds(resources.items.map((item) => item.id))}>Select Page</button><button type="button" className="m-btn" onClick={() => void safe(async () => { if (!instanceId || selectedItems.length === 0) return; await apiPost("/api/resources/batch/apply", { instanceId, targetRelDir: "data/default-user/characters", mode: "copy_once", items: selectedItems.map((item) => item.source === "vault" ? { source: "vault", id: toVaultId(item.id) } : { source: "instance", instanceId: item.instanceId, relPath: item.relPath }) }); setToast("Batch apply done"); await loadAll(); })}>Batch Apply</button><button type="button" className="m-btn m-btn-ghost" onClick={() => void safe(async () => { if (selectedItems.length === 0) return; await downloadZip("/api/resources/batch/export/zip", { items: selectedItems.map((item) => item.source === "vault" ? { source: "vault", id: toVaultId(item.id) } : { source: "instance", instanceId: item.instanceId, relPath: item.relPath }) }, `resources-${Date.now()}.zip`); })}>Export ZIP</button><button type="button" className="m-btn m-btn-danger" onClick={() => void safe(async () => { if (selectedItems.length === 0) return; await apiPost("/api/resources/batch/delete", { items: selectedItems.map((item) => item.source === "vault" ? { source: "vault", id: toVaultId(item.id) } : { source: "instance", instanceId: item.instanceId, relPath: item.relPath }) }); setToast("Moved to trash"); await loadAll(); })}>Delete</button></div><ul className="m-list-clean">{resources.items.map((item) => <li key={item.id} className="m-resource-card"><p className="m-muted">{item.title}</p><p className="m-muted">{item.relPath}</p><div className="m-actions-row"><label className="m-check"><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => setSelectedIds((prev) => prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id])} />Select</label>{item.source === "vault" ? <button type="button" className="m-btn m-btn-ghost" onClick={() => void safe(async () => { await apiPatch(`/api/vault/items/${toVaultId(item.id)}/meta`, { favorite: !item.favorite }); await loadAll(); })}>{item.favorite ? "Unstar" : "Star"}</button> : null}</div></li>)}</ul></section> : null}
-
-        {tab === "queue" ? <section className="m-card"><h2>Queue</h2><ul className="m-list-clean">{queue.map((job) => <li key={job.id} className="m-resource-card"><p className="m-muted">{job.type} · {job.status} · {job.reason ?? "-"}</p><p className="m-muted">{job.updatedAt}</p></li>)}</ul></section> : null}
-
-        {tab === "git" ? <section className="m-card"><h2>Git</h2><div className="m-actions-row"><button type="button" className="m-btn" onClick={() => void safe(async () => { if (!instanceId) return; const result = await apiPost("/api/instances/" + instanceId + "/git/pull", {}); setGitResult(JSON.stringify(result, null, 2)); await loadAll(); })}>Pull Instance</button><button type="button" className="m-btn m-btn-ghost" onClick={() => void safe(async () => { const result = await apiPost("/api/vault/git/pull", {}); setGitResult(JSON.stringify(result, null, 2)); await loadAll(); })}>Pull Vault</button></div><pre className="m-muted" style={{ whiteSpace: "pre-wrap" }}>{gitResult || "No output yet."}</pre></section> : null}
-
-        {tab === "settings" ? <section className="m-card"><h2>Settings</h2><div className="m-actions-row"><input className="m-input" type="password" value={enablePassword} onChange={(e) => setEnablePassword(e.target.value)} placeholder="password for auth toggle" /><button type="button" className="m-btn" onClick={() => void safe(async () => { await apiPost("/api/auth/set-enabled", { enabled: !authStatus.enabled, password: enablePassword || undefined }); const status = await apiGet<AuthStatus>("/api/auth/status"); setAuthStatus(status); setEnablePassword(""); })}>{authStatus.enabled ? "Disable Auth" : "Enable Auth"}</button></div><div className="m-actions-row"><input className="m-input" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="current password" /><input className="m-input" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="new password" /><button type="button" className="m-btn" onClick={() => void safe(async () => { await apiPost("/api/auth/change-password", { currentPassword, newPassword }); setCurrentPassword(""); setNewPassword(""); })}>Change Password</button></div><div className="m-actions-row"><label className="m-check"><input type="checkbox" checked={settings?.autoOpenBrowser ?? false} onChange={(e) => void safe(async () => setSettings(await apiPatch("/api/app-settings", { autoOpenBrowser: e.target.checked })))} />auto open</label><label className="m-check"><input type="checkbox" checked={settings?.autoUpdateRepo ?? true} onChange={(e) => void safe(async () => setSettings(await apiPatch("/api/app-settings", { autoUpdateRepo: e.target.checked })))} />auto update</label><label className="m-check"><input type="checkbox" checked={settings?.legacyUiEnabled ?? true} onChange={(e) => void safe(async () => setSettings(await apiPatch("/api/app-settings", { legacyUiEnabled: e.target.checked })))} />legacy entry</label></div><button type="button" className="m-btn m-btn-ghost" onClick={() => setLegacyMode(true)}>Open Legacy UI</button></section> : null}
+        {tab === "home" ? renderHome() : null}
+        {tab === "resources" ? renderResources() : null}
+        {tab === "queue" ? renderQueue() : null}
+        {tab === "git" ? renderGit() : null}
+        {tab === "settings" ? renderSettings() : null}
       </main>
 
       <nav className="m-bottom-nav">
-        {TABS.map((item) => <button key={item.key} type="button" className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>{item.label}</button>)}
+        {TABS.map((item) => (
+          <button key={item.key} type="button" className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>
+            {item.label}
+          </button>
+        ))}
       </nav>
+
       {toast ? <div className="m-toast">{toast}</div> : null}
     </div>
   );

@@ -21,8 +21,8 @@ function showFatal(error: unknown): void {
   const message = stringifyError(error);
   root.innerHTML = `
     <div style="padding:16px;font-family:sans-serif;line-height:1.5;">
-      <h2 style="margin:0 0 8px;">App Boot Failed</h2>
-      <p style="margin:0 0 8px;">Frontend crashed before rendering. Please copy this error and report it.</p>
+      <h2 style="margin:0 0 8px;">页面启动失败</h2>
+      <p style="margin:0 0 8px;">前端在渲染前崩溃，请复制下面报错内容提交反馈。</p>
       <pre style="white-space:pre-wrap;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:10px;overflow:auto;">${message}</pre>
     </div>
   `;
@@ -39,7 +39,7 @@ window.addEventListener("unhandledrejection", (event) => {
 try {
   const rootElement = document.getElementById("root");
   if (!rootElement) {
-    throw new Error("Missing #root element");
+    throw new Error("未找到 #root 挂载节点");
   }
   createRoot(rootElement).render(
     <React.StrictMode>
