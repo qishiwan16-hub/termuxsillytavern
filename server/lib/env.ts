@@ -3,31 +3,54 @@ import os from "node:os";
 import fs from "fs-extra";
 
 export const DEFAULT_ST_PATH = path.join(os.homedir(), "SillyTavern");
-export const APP_DATA_ROOT =
-  process.env.ST_MANAGER_HOME ?? path.join(os.homedir(), ".st-resource-manager");
+const DEFAULT_APP_DATA_ROOT = path.join(os.homedir(), ".st-resource-manager");
+const FALLBACK_APP_DATA_ROOT = path.join(process.cwd(), ".st-resource-manager");
 
-export const APP_PATHS = {
-  dataRoot: APP_DATA_ROOT,
-  configDir: path.join(APP_DATA_ROOT, "config"),
-  stateDir: path.join(APP_DATA_ROOT, "state"),
-  backupsDir: path.join(APP_DATA_ROOT, "backups"),
-  reposDir: path.join(APP_DATA_ROOT, "repos"),
-  vaultDir: path.join(APP_DATA_ROOT, "vault"),
-  vaultFilesDir: path.join(APP_DATA_ROOT, "vault", "files"),
-  auditDir: path.join(APP_DATA_ROOT, "audit"),
-  instancesFile: path.join(APP_DATA_ROOT, "config", "instances.json"),
-  queueFile: path.join(APP_DATA_ROOT, "state", "write-queue.json"),
-  vaultMetaFile: path.join(APP_DATA_ROOT, "vault", "meta.json"),
-  auditLogFile: path.join(APP_DATA_ROOT, "audit", "actions.log")
-};
+export let APP_DATA_ROOT = process.env.ST_MANAGER_HOME ?? DEFAULT_APP_DATA_ROOT;
+
+function buildPaths(rootPath: string) {
+  return {
+    dataRoot: rootPath,
+    configDir: path.join(rootPath, "config"),
+    stateDir: path.join(rootPath, "state"),
+    backupsDir: path.join(rootPath, "backups"),
+    reposDir: path.join(rootPath, "repos"),
+    vaultDir: path.join(rootPath, "vault"),
+    vaultFilesDir: path.join(rootPath, "vault", "files"),
+    auditDir: path.join(rootPath, "audit"),
+    instancesFile: path.join(rootPath, "config", "instances.json"),
+    queueFile: path.join(rootPath, "state", "write-queue.json"),
+    vaultMetaFile: path.join(rootPath, "vault", "meta.json"),
+    auditLogFile: path.join(rootPath, "audit", "actions.log")
+  };
+}
+
+export let APP_PATHS = buildPaths(APP_DATA_ROOT);
+
+function setDataRoot(rootPath: string): void {
+  APP_DATA_ROOT = rootPath;
+  APP_PATHS = buildPaths(rootPath);
+}
 
 export async function ensureAppDirs(): Promise<void> {
-  await fs.ensureDir(APP_PATHS.dataRoot);
-  await fs.ensureDir(APP_PATHS.configDir);
-  await fs.ensureDir(APP_PATHS.stateDir);
-  await fs.ensureDir(APP_PATHS.backupsDir);
-  await fs.ensureDir(APP_PATHS.reposDir);
-  await fs.ensureDir(APP_PATHS.vaultDir);
-  await fs.ensureDir(APP_PATHS.vaultFilesDir);
-  await fs.ensureDir(APP_PATHS.auditDir);
+  const ensureAll = async () => {
+    await fs.ensureDir(APP_PATHS.dataRoot);
+    await fs.ensureDir(APP_PATHS.configDir);
+    await fs.ensureDir(APP_PATHS.stateDir);
+    await fs.ensureDir(APP_PATHS.backupsDir);
+    await fs.ensureDir(APP_PATHS.reposDir);
+    await fs.ensureDir(APP_PATHS.vaultDir);
+    await fs.ensureDir(APP_PATHS.vaultFilesDir);
+    await fs.ensureDir(APP_PATHS.auditDir);
+  };
+
+  try {
+    await ensureAll();
+  } catch (error) {
+    if (process.env.ST_MANAGER_HOME) {
+      throw error;
+    }
+    setDataRoot(FALLBACK_APP_DATA_ROOT);
+    await ensureAll();
+  }
 }

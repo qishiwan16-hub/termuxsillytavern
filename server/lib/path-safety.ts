@@ -51,8 +51,17 @@ export async function resolveInsideRoot(
     throw new Error("目标不存在");
   }
 
-  const parentReal = await fs.realpath(path.dirname(target));
-  if (!startsWithPath(rootReal, parentReal)) {
+  let probePath = path.dirname(target);
+  while (!(await fs.pathExists(probePath))) {
+    const parent = path.dirname(probePath);
+    if (parent === probePath) {
+      throw new Error("无法解析目标路径");
+    }
+    probePath = parent;
+  }
+
+  const existingAncestor = await fs.realpath(probePath);
+  if (!startsWithPath(rootReal, existingAncestor)) {
     throw new Error("路径越界，拒绝写入");
   }
   return target;

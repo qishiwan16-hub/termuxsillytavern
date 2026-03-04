@@ -12,7 +12,7 @@
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
-    "test": "tsx --test server/tests/**/*.test.ts"
+    "test": "npm run build:server && cross-env ST_MANAGER_HOME=.test-data node dist/server/tests/run-tests.js"
   },
   "dependencies": {
     "@fastify/multipart": "^9.2.1",
@@ -36,6 +36,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.0",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vite": "^7.2.4"
