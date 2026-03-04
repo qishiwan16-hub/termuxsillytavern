@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { AppSettings, PanelKey, QueueJob, ResourceResp, Source } from "../../types";
 
 interface PanelShellProps {
@@ -17,7 +17,9 @@ export function PanelShell(props: PanelShellProps): React.ReactNode {
         ? "写入队列"
         : props.activePanel === "git"
           ? "Git 同步"
-          : "系统设置";
+          : props.activePanel === "cloud"
+            ? "云端存储"
+            : "系统设置";
 
   return (
     <section className="m-panel-page">
@@ -244,6 +246,182 @@ export function SettingsPanel(props: SettingsPanelProps): React.ReactNode {
       <button type="button" className="m-btn m-btn-ghost" onClick={props.onOpenLegacy}>
         打开旧版界面
       </button>
+    </section>
+  );
+}
+
+interface CloudPanelProps {
+  hasInstance: boolean;
+  instanceName: string;
+  cloudResult: string;
+  onExportProjectZip: () => void;
+  onImportProjectZip: (file: File, targetRelDir: string) => void;
+  onExportVaultZip: () => void;
+  onImportVaultZip: (file: File, tags: string) => void;
+  onProjectClone: (repoUrl: string, branch: string) => void;
+  onProjectPull: () => void;
+  onProjectPush: (message: string) => void;
+  onVaultClone: (repoUrl: string, branch: string) => void;
+  onVaultPull: () => void;
+  onVaultPush: (message: string) => void;
+}
+
+export function CloudPanel(props: CloudPanelProps): React.ReactNode {
+  const [mode, setMode] = useState<"drive" | "git">("drive");
+  const [projectImportDir, setProjectImportDir] = useState("");
+  const [vaultTags, setVaultTags] = useState("");
+  const [projectRepoUrl, setProjectRepoUrl] = useState("");
+  const [projectBranch, setProjectBranch] = useState("");
+  const [projectMessage, setProjectMessage] = useState("cloud sync");
+  const [vaultRepoUrl, setVaultRepoUrl] = useState("");
+  const [vaultBranch, setVaultBranch] = useState("");
+  const [vaultMessage, setVaultMessage] = useState("vault cloud sync");
+
+  return (
+    <section className="m-card">
+      <h2>云端存储</h2>
+      <div className="m-cloud-mode">
+        <button type="button" className={`m-btn ${mode === "drive" ? "" : "m-btn-ghost"}`} onClick={() => setMode("drive")}>
+          云盘
+        </button>
+        <button type="button" className={`m-btn ${mode === "git" ? "" : "m-btn-ghost"}`} onClick={() => setMode("git")}>
+          Git 仓库
+        </button>
+      </div>
+
+      {mode === "drive" ? (
+        <div className="m-cloud-grid">
+          <article className="m-cloud-card">
+            <h3>云盘同步 · 酒馆项目</h3>
+            <p className="m-muted">适合走 ZIP 备份到网盘，支持导出和导入。</p>
+            <input
+              className="m-input"
+              value={projectImportDir}
+              onChange={(event) => setProjectImportDir(event.target.value)}
+              placeholder="导入目标目录（可空）"
+            />
+            <div className="m-actions-row">
+              <button type="button" className="m-btn" onClick={props.onExportProjectZip} disabled={!props.hasInstance}>
+                导出项目 ZIP
+              </button>
+              <label className="m-file-btn">
+                导入项目 ZIP
+                <input
+                  type="file"
+                  accept=".zip,application/zip"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    props.onImportProjectZip(file, projectImportDir);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </article>
+
+          <article className="m-cloud-card">
+            <h3>云盘同步 · Vault</h3>
+            <p className="m-muted">适合素材库整体备份到网盘，支持导出和导入。</p>
+            <input
+              className="m-input"
+              value={vaultTags}
+              onChange={(event) => setVaultTags(event.target.value)}
+              placeholder="导入时附加标签（逗号分隔）"
+            />
+            <div className="m-actions-row">
+              <button type="button" className="m-btn" onClick={props.onExportVaultZip}>
+                导出 Vault ZIP
+              </button>
+              <label className="m-file-btn">
+                导入 Vault ZIP
+                <input
+                  type="file"
+                  accept=".zip,application/zip"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    props.onImportVaultZip(file, vaultTags);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </article>
+        </div>
+      ) : (
+        <div className="m-cloud-grid">
+          <article className="m-cloud-card">
+            <h3>Git 仓库 · 酒馆项目</h3>
+            <p className="m-muted">当前项目：{props.instanceName}</p>
+            <input
+              className="m-input"
+              value={projectRepoUrl}
+              onChange={(event) => setProjectRepoUrl(event.target.value)}
+              placeholder="仓库地址（https://...git）"
+            />
+            <input
+              className="m-input"
+              value={projectBranch}
+              onChange={(event) => setProjectBranch(event.target.value)}
+              placeholder="分支（可空）"
+            />
+            <input
+              className="m-input"
+              value={projectMessage}
+              onChange={(event) => setProjectMessage(event.target.value)}
+              placeholder="推送说明"
+            />
+            <div className="m-actions-row">
+              <button type="button" className="m-btn" disabled={!props.hasInstance} onClick={() => props.onProjectClone(projectRepoUrl, projectBranch)}>
+                连接仓库
+              </button>
+              <button type="button" className="m-btn m-btn-ghost" disabled={!props.hasInstance} onClick={props.onProjectPull}>
+                拉取
+              </button>
+              <button type="button" className="m-btn m-btn-ghost" disabled={!props.hasInstance} onClick={() => props.onProjectPush(projectMessage)}>
+                推送
+              </button>
+            </div>
+          </article>
+
+          <article className="m-cloud-card">
+            <h3>Git 仓库 · Vault</h3>
+            <p className="m-muted">用于同步你的素材仓库。</p>
+            <input
+              className="m-input"
+              value={vaultRepoUrl}
+              onChange={(event) => setVaultRepoUrl(event.target.value)}
+              placeholder="仓库地址（https://...git）"
+            />
+            <input
+              className="m-input"
+              value={vaultBranch}
+              onChange={(event) => setVaultBranch(event.target.value)}
+              placeholder="分支（可空）"
+            />
+            <input
+              className="m-input"
+              value={vaultMessage}
+              onChange={(event) => setVaultMessage(event.target.value)}
+              placeholder="推送说明"
+            />
+            <div className="m-actions-row">
+              <button type="button" className="m-btn" onClick={() => props.onVaultClone(vaultRepoUrl, vaultBranch)}>
+                连接仓库
+              </button>
+              <button type="button" className="m-btn m-btn-ghost" onClick={props.onVaultPull}>
+                拉取
+              </button>
+              <button type="button" className="m-btn m-btn-ghost" onClick={() => props.onVaultPush(vaultMessage)}>
+                推送
+              </button>
+            </div>
+          </article>
+        </div>
+      )}
+
+      <pre className="m-muted m-pre">{props.cloudResult || "暂无云端同步输出"}</pre>
     </section>
   );
 }

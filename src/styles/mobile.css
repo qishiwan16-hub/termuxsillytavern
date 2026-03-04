@@ -754,33 +754,50 @@ body {
   min-width: 0;
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
 }
 
-.m-home-user-text {
+.m-home-user-card {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: 4px;
+  align-content: center;
+  border: 1px solid #e2e2e2;
+  border-radius: 10px;
+  background: #f8f8f8;
+  padding: 8px 10px;
+  position: relative;
+}
+
+.m-home-user-card::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 8px;
+  height: 1px;
+  background: #ececec;
 }
 
 .m-home-owner {
-  margin: 0;
+  margin: 2px 0 0;
   color: #8a8a8a;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   font-size: 12px;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .m-home-name {
-  margin: 0;
-  font-size: clamp(28px, 8.4vw, 40px);
+  margin: 1px 0 0;
+  font-size: clamp(26px, 7.8vw, 36px);
   line-height: 1.08;
+  letter-spacing: 0.01em;
 }
 
 .m-home-sub {
   margin: 0;
-  font-size: clamp(14px, 4.5vw, 18px);
+  font-size: clamp(13px, 4.2vw, 16px);
   color: #676767;
   line-height: 1.32;
 }
@@ -1151,6 +1168,77 @@ body {
   font-size: 14px;
 }
 
+.m-home-cloud-strip {
+  margin-top: 12px;
+}
+
+.m-home-cloud-btn {
+  width: 100%;
+  border: 1px solid #dcdcdc;
+  border-radius: 12px;
+  background: #f7f7f7;
+  padding: 10px 12px;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+
+.m-home-cloud-title {
+  color: #1d1d1d;
+  font-family: "Noto Serif SC", serif;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.m-home-cloud-sub {
+  color: #727272;
+  font-size: 13px;
+}
+
+.m-cloud-mode {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.m-cloud-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.m-cloud-card {
+  border: 1px solid #e1e1e1;
+  border-radius: 12px;
+  background: #fafafa;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.m-cloud-card h3 {
+  margin: 0;
+  color: #191919;
+  font-family: "Noto Serif SC", serif;
+}
+
+.m-file-btn {
+  border: 1px solid #d0d0d0;
+  background: #fafafa;
+  color: #2f2f2f;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  position: relative;
+  overflow: hidden;
+}
+
+.m-file-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
 @media (max-width: 520px) {
   .m-home-cockpit {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1170,6 +1258,18 @@ body {
     font-size: 17px;
   }
 
+  .m-home-user {
+    gap: 8px;
+  }
+
+  .m-home-user-card {
+    padding: 7px 9px;
+  }
+
+  .m-home-name {
+    font-size: clamp(22px, 7vw, 30px);
+  }
+
   .m-profile-trigger {
     width: 58px;
     height: 58px;
@@ -1184,6 +1284,10 @@ body {
     width: 64px;
     height: 64px;
     font-size: 20px;
+  }
+
+  .m-cloud-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1283,6 +1387,14 @@ body {
 
 .m-app .m-home-rec-title {
   font-size: calc(24px * var(--m-font-scale));
+}
+
+.m-app .m-home-cloud-title {
+  font-size: calc(20px * var(--m-font-scale));
+}
+
+.m-app .m-home-cloud-sub {
+  font-size: calc(13px * var(--m-font-scale));
 }
 
 @keyframes m-fade-in {

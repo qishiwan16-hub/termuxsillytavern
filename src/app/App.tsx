@@ -22,7 +22,7 @@ import {
 import { AuthGate } from "./components/AuthGate";
 import { HomePage } from "./components/HomePage";
 import { ProfileEditorModal } from "./components/ProfileEditorModal";
-import { GitPanel, PanelShell, QueuePanel, ResourcesPanel, SettingsPanel } from "./components/panels/MainPanels";
+import { CloudPanel, GitPanel, PanelShell, QueuePanel, ResourcesPanel, SettingsPanel } from "./components/panels/MainPanels";
 import type {
   AppSettings,
   AuthMode,
@@ -70,6 +70,7 @@ export function App() {
   const [query, setQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [gitResult, setGitResult] = useState("");
+  const [cloudResult, setCloudResult] = useState("");
   const [activePanel, setActivePanel] = useState<PanelKey | null>(null);
   const [legacyMode, setLegacyMode] = useState(false);
   const [toast, setToast] = useState("");
@@ -370,6 +371,7 @@ export function App() {
       if (!instanceId) return;
       const result = await apiPost(`/api/instances/${instanceId}/git/pull`, {});
       setGitResult(JSON.stringify(result, null, 2));
+      setCloudResult(JSON.stringify(result, null, 2));
       await loadAll();
     });
   }
@@ -378,6 +380,119 @@ export function App() {
     await safe(async () => {
       const result = await apiPost("/api/vault/git/pull", {});
       setGitResult(JSON.stringify(result, null, 2));
+      setCloudResult(JSON.stringify(result, null, 2));
+      await loadAll();
+    });
+  }
+
+  async function exportProjectZip(): Promise<void> {
+    await safe(async () => {
+      if (!instanceId) {
+        setToast("请先选择酒馆项目");
+        return;
+      }
+      await downloadZip(`/api/instances/${instanceId}/export/zip`, { paths: [] }, `project-${Date.now()}.zip`);
+      setCloudResult("项目 ZIP 导出成功，可上传到云盘。");
+      setToast("项目 ZIP 已导出");
+    });
+  }
+
+  async function importProjectZip(file: File, targetRelDir: string): Promise<void> {
+    await safe(async () => {
+      if (!instanceId) {
+        setToast("请先选择酒馆项目");
+        return;
+      }
+      const form = new FormData();
+      form.append("file", file);
+      const query = targetRelDir.trim() ? `?targetRelDir=${encodeURIComponent(targetRelDir.trim())}` : "";
+      const result = await apiPost<{ imported: number }>(`/api/instances/${instanceId}/import/zip${query}`, form);
+      setCloudResult(`项目 ZIP 导入成功，共导入 ${result.imported} 项。`);
+      setToast("项目 ZIP 导入完成");
+      await loadAll();
+    });
+  }
+
+  async function exportVaultZip(): Promise<void> {
+    await safe(async () => {
+      await downloadZip("/api/vault/export/zip", {}, `vault-${Date.now()}.zip`);
+      setCloudResult("Vault ZIP 导出成功，可上传到云盘。");
+      setToast("Vault ZIP 已导出");
+    });
+  }
+
+  async function importVaultZip(file: File, tags: string): Promise<void> {
+    await safe(async () => {
+      const form = new FormData();
+      form.append("file", file);
+      if (tags.trim()) {
+        form.append("tags", tags.trim());
+      }
+      const result = await apiPost<{ items: Array<{ id: string }> }>("/api/vault/import/zip", form);
+      setCloudResult(`Vault ZIP 导入成功，共导入 ${result.items.length} 项。`);
+      setToast("Vault ZIP 导入完成");
+      await loadAll();
+    });
+  }
+
+  async function projectClone(repoUrl: string, branch: string): Promise<void> {
+    await safe(async () => {
+      if (!instanceId) {
+        setToast("请先选择酒馆项目");
+        return;
+      }
+      if (!repoUrl.trim()) {
+        setToast("请输入项目仓库地址");
+        return;
+      }
+      const result = await apiPost(`/api/instances/${instanceId}/git/clone`, {
+        repoUrl: repoUrl.trim(),
+        branch: branch.trim() || undefined
+      });
+      setCloudResult(JSON.stringify(result, null, 2));
+      setToast("项目 Git 已连接");
+      await loadAll();
+    });
+  }
+
+  async function projectPush(message: string): Promise<void> {
+    await safe(async () => {
+      if (!instanceId) {
+        setToast("请先选择酒馆项目");
+        return;
+      }
+      const result = await apiPost(`/api/instances/${instanceId}/git/push`, {
+        message: message.trim() || "cloud sync"
+      });
+      setCloudResult(JSON.stringify(result, null, 2));
+      setToast("项目 Git 推送完成");
+      await loadAll();
+    });
+  }
+
+  async function vaultClone(repoUrl: string, branch: string): Promise<void> {
+    await safe(async () => {
+      if (!repoUrl.trim()) {
+        setToast("请输入 Vault 仓库地址");
+        return;
+      }
+      const result = await apiPost("/api/vault/git/clone", {
+        repoUrl: repoUrl.trim(),
+        branch: branch.trim() || undefined
+      });
+      setCloudResult(JSON.stringify(result, null, 2));
+      setToast("Vault Git 已连接");
+      await loadAll();
+    });
+  }
+
+  async function vaultPush(message: string): Promise<void> {
+    await safe(async () => {
+      const result = await apiPost("/api/vault/git/push", {
+        message: message.trim() || "vault cloud sync"
+      });
+      setCloudResult(JSON.stringify(result, null, 2));
+      setToast("Vault Git 推送完成");
       await loadAll();
     });
   }
@@ -434,6 +549,22 @@ export function App() {
       <QueuePanel queue={queue} />
     ) : activePanel === "git" ? (
       <GitPanel gitResult={gitResult} onPullProject={() => void pullProject()} onPullVault={() => void pullVault()} />
+    ) : activePanel === "cloud" ? (
+      <CloudPanel
+        hasInstance={Boolean(instanceId)}
+        instanceName={currentInstance?.name ?? "未选择"}
+        cloudResult={cloudResult}
+        onExportProjectZip={() => void exportProjectZip()}
+        onImportProjectZip={(file, targetRelDir) => void importProjectZip(file, targetRelDir)}
+        onExportVaultZip={() => void exportVaultZip()}
+        onImportVaultZip={(file, tags) => void importVaultZip(file, tags)}
+        onProjectClone={(repoUrl, branch) => void projectClone(repoUrl, branch)}
+        onProjectPull={() => void pullProject()}
+        onProjectPush={(message) => void projectPush(message)}
+        onVaultClone={(repoUrl, branch) => void vaultClone(repoUrl, branch)}
+        onVaultPull={() => void pullVault()}
+        onVaultPush={(message) => void vaultPush(message)}
+      />
     ) : activePanel === "settings" ? (
       <SettingsPanel
         settings={settings}

@@ -1,6 +1,6 @@
 export type AuthMode = "checking" | "setup" | "login" | "ready";
 export type Source = "all" | "instance" | "vault";
-export type PanelKey = "resources" | "queue" | "git" | "settings";
+export type PanelKey = "resources" | "queue" | "git" | "settings" | "cloud";
 
 export interface AuthStatus {
   enabled: boolean;

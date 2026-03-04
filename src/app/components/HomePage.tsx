@@ -36,7 +36,7 @@ export function HomePage(props: HomePageProps): React.ReactNode {
             <button type="button" className="m-profile-trigger" onClick={props.onOpenProfile} aria-label="打开个人资料">
               {props.profileAvatar ? <img src={props.profileAvatar} alt="头像" /> : <span>{props.profileInitials}</span>}
             </button>
-            <div className="m-home-user-text">
+            <div className="m-home-user-card">
               <p className="m-home-owner">{props.profileName}</p>
               <h2 className="m-home-name">{props.projectName}</h2>
               <p className="m-home-sub">
@@ -130,6 +130,13 @@ export function HomePage(props: HomePageProps): React.ReactNode {
           ) : (
             <p className="m-home-cockpit-empty">暂无记录</p>
           )}
+        </button>
+      </section>
+
+      <section className="m-home-cloud-strip">
+        <button type="button" className="m-home-cloud-btn" onClick={() => props.onOpenPanel("cloud")}>
+          <span className="m-home-cloud-title">云端存储</span>
+          <span className="m-home-cloud-sub">云盘 ZIP / Git 仓库 双模式兼容</span>
         </button>
       </section>
     </section>
