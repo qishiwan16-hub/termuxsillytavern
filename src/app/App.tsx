@@ -305,9 +305,18 @@ export function App() {
   function normalizeProjectPath(input: string): string {
     const trimmed = input.trim().replace(/[\\/]+$/, "");
     if (!trimmed) return "";
-    if (/[\\/]data[\\/]default-user$/i.test(trimmed)) return trimmed;
-    if (/[\\/]sillytavern$/i.test(trimmed)) return `${trimmed}/data/default-user`;
-    return `${trimmed}/data/default-user`;
+    return trimmed;
+  }
+
+  function inferApplyCharactersDir(rootPath: string | undefined): string {
+    const normalized = (rootPath ?? "").replace(/\\/g, "/").replace(/\/+$/, "");
+    if (/\/data\/[^/]+$/i.test(normalized)) {
+      return "characters";
+    }
+    if (/\/data$/i.test(normalized)) {
+      return "default-user/characters";
+    }
+    return "data/default-user/characters";
   }
 
   function toggleFavoriteProjectPath(): void {
@@ -424,7 +433,7 @@ export function App() {
       if (!instanceId || selectedItems.length === 0) return;
       await apiPost("/api/resources/batch/apply", {
         instanceId,
-        targetRelDir: "data/default-user/characters",
+        targetRelDir: inferApplyCharactersDir(currentInstance?.rootPath),
         mode: "copy_once",
         items: selectedItems.map((item) =>
           item.source === "vault"

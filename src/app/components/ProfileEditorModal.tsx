@@ -113,7 +113,7 @@ export function ProfileEditorModal(props: ProfileEditorModalProps): React.ReactN
                 className="m-input"
                 value={props.projectPathDraft}
                 onChange={(event) => props.onProjectPathDraftChange(event.target.value)}
-                placeholder="/data/data/com.termux/files/home/SillyTavern/data/default-user"
+                placeholder="/data/data/com.termux/files/home/SillyTavern/data/你的用户目录"
               />
               <button type="button" className="m-folder-btn" onClick={props.onOpenDirPicker} aria-label="打开目录选择">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -151,7 +151,7 @@ export function ProfileEditorModal(props: ProfileEditorModalProps): React.ReactN
                 保存路径
               </button>
             </div>
-            <p className="m-muted m-break">建议选择到 `data/default-user` 层级，资源会按该目录归类读取。</p>
+            <p className="m-muted m-break">建议选择到 `data/你的用户目录` 层级（例如 `data/default-user`、`data/she`）。</p>
           </div>
 
           {props.dirPickerOpen ? (

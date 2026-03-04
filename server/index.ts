@@ -133,11 +133,19 @@ async function resolveBrowseDirectory(inputPath?: string): Promise<{ rootPath: s
 }
 
 async function detectExtensionRelDir(rootPath: string): Promise<string> {
-  const candidates = [
-    "data/default-user/extensions",
-    "public/scripts/extensions/third-party",
-    "extensions"
-  ];
+  const normalized = path.resolve(rootPath).replace(/\\/g, "/").replace(/\/+$/, "");
+  const isUserDataRoot = /\/data\/[^/]+$/i.test(normalized);
+  const candidates = isUserDataRoot
+    ? [
+        "extensions",
+        "public/scripts/extensions/third-party",
+        "data/default-user/extensions"
+      ]
+    : [
+        "data/default-user/extensions",
+        "public/scripts/extensions/third-party",
+        "extensions"
+      ];
   for (const candidate of candidates) {
     const abs = path.join(rootPath, candidate);
     if (await fs.pathExists(abs)) {

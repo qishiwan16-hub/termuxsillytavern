@@ -38,17 +38,38 @@ function uniquePaths(paths: string[]): string[] {
   return out;
 }
 
-function inferSillyTavernRoot(resourceRootPath: string): string {
+function findSegmentRoot(resourceRootPath: string, segmentName: string): string | null {
   const abs = path.resolve(resourceRootPath);
   const parsed = path.parse(abs);
   const rel = abs.slice(parsed.root.length);
   const parts = rel.split(/[\\/]+/).filter(Boolean);
+  const target = segmentName.trim().toLowerCase();
+  for (let index = 0; index < parts.length; index += 1) {
+    if (parts[index]?.toLowerCase() === target) {
+      return path.join(parsed.root, ...parts.slice(0, index + 1));
+    }
+  }
+  return null;
+}
+
+function inferSillyTavernRoot(resourceRootPath: string): string {
+  const byName = findSegmentRoot(resourceRootPath, "sillytavern");
+  if (byName) {
+    return byName;
+  }
+
+  const abs = path.resolve(resourceRootPath);
+  const parsed = path.parse(abs);
+  const rel = abs.slice(parsed.root.length);
+  const parts = rel.split(/[\\/]+/).filter(Boolean);
+
   for (let index = 0; index < parts.length - 1; index += 1) {
     const current = parts[index]?.toLowerCase();
-    const next = parts[index + 1]?.toLowerCase();
-    if (current === "data" && next === "default-user") {
+    if (current === "data") {
       const prefix = parts.slice(0, index);
-      return path.join(parsed.root, ...prefix);
+      if (prefix.length > 0) {
+        return path.join(parsed.root, ...prefix);
+      }
     }
   }
   return abs;
@@ -77,6 +98,13 @@ async function readPackageInfo(dirPath: string): Promise<{ name: string; version
 async function detectVersion(instanceRootPath: string): Promise<string> {
   const abs = path.resolve(instanceRootPath);
   const stRoot = inferSillyTavernRoot(abs);
+  const namedRoot = findSegmentRoot(abs, "sillytavern");
+  if (namedRoot) {
+    const pinned = await readPackageInfo(namedRoot);
+    if (pinned?.version) {
+      return pinned.version;
+    }
+  }
   const candidates = uniquePaths([
     stRoot,
     abs,
