@@ -12,9 +12,9 @@ import {
 
 const LegacyApp = lazy(() => import("./LegacyApp").then((mod) => ({ default: mod.LegacyApp })));
 
-type Tab = "home" | "resources" | "queue" | "git" | "settings";
 type AuthMode = "checking" | "setup" | "login" | "ready";
 type Source = "all" | "instance" | "vault";
+type PanelKey = "resources" | "queue" | "git" | "settings";
 
 interface AuthStatus {
   enabled: boolean;
@@ -61,9 +61,23 @@ interface AppSettings {
 
 interface Dashboard {
   selectedInstanceId: string | null;
-  selectedInstance?: { id?: string; name: string; rootPath: string; version: string; resourceTotal: number; isRunning: boolean };
+  selectedInstance?: {
+    id?: string;
+    name: string;
+    rootPath: string;
+    version: string;
+    resourceTotal: number;
+    isRunning: boolean;
+  };
   resourceStats?: Record<string, number>;
-  queueStats: { total: number; blocked: number; failed: number; running?: number; pending?: number; updatedAt: string };
+  queueStats: {
+    total: number;
+    blocked: number;
+    failed: number;
+    running?: number;
+    pending?: number;
+    updatedAt: string;
+  };
 }
 
 interface ResourceStatItem {
@@ -72,13 +86,8 @@ interface ResourceStatItem {
   value: number;
 }
 
-const TABS: Array<{ key: Tab; label: string }> = [
-  { key: "home", label: "首页" },
-  { key: "resources", label: "资源" },
-  { key: "queue", label: "队列" },
-  { key: "git", label: "Git" },
-  { key: "settings", label: "设置" }
-];
+const PROFILE_NAME_KEY = "st_manager_profile_name";
+const PROFILE_AVATAR_KEY = "st_manager_profile_avatar";
 
 const RESOURCE_TYPE_LABELS: Array<{ key: string; label: string }> = [
   { key: "character", label: "角色卡" },
@@ -105,15 +114,26 @@ function toShortDate(value?: string): string {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+function initials(name: string): string {
+  const value = name.trim();
+  if (!value) return "ST";
+  return value.slice(0, 2).toUpperCase();
+}
+
 export function App() {
-  const [tab, setTab] = useState<Tab>("home");
   const [authMode, setAuthMode] = useState<AuthMode>("checking");
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ enabled: false, passwordConfigured: false });
   const [setupPassword, setSetupPassword] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+
   const [enablePassword, setEnablePassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  const [profileName, setProfileName] = useState("管理员");
+  const [profileAvatar, setProfileAvatar] = useState("");
+  const [profileDraftName, setProfileDraftName] = useState("管理员");
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
 
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState("");
@@ -128,8 +148,9 @@ export function App() {
   const [source, setSource] = useState<Source>("all");
   const [query, setQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [legacyMode, setLegacyMode] = useState(false);
   const [gitResult, setGitResult] = useState("");
+  const [activePanel, setActivePanel] = useState<PanelKey | null>(null);
+  const [legacyMode, setLegacyMode] = useState(false);
   const [toast, setToast] = useState("");
 
   const currentInstance = useMemo(() => instances.find((item) => item.id === instanceId), [instances, instanceId]);
@@ -169,6 +190,18 @@ export function App() {
   }, [dashboard]);
 
   useEffect(() => {
+    const name = localStorage.getItem(PROFILE_NAME_KEY)?.trim();
+    const avatar = localStorage.getItem(PROFILE_AVATAR_KEY) ?? "";
+    if (name) {
+      setProfileName(name);
+      setProfileDraftName(name);
+    }
+    if (avatar) {
+      setProfileAvatar(avatar);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timer);
@@ -187,13 +220,16 @@ export function App() {
     }
   }
 
-  async function loadAll(): Promise<void> {
+  async function loadAll(options?: { instanceId?: string; source?: Source; query?: string }): Promise<void> {
+    const preferredInstanceId = options?.instanceId ?? instanceId;
+    const nextSource = options?.source ?? source;
+    const nextQuery = options?.query ?? query;
     const instancesResp = await safe(() => apiGet<{ items: Instance[] }>("/api/instances"));
     if (!instancesResp) return;
     setInstances(instancesResp.items);
 
-    const nextId = instancesResp.items.some((item) => item.id === instanceId)
-      ? instanceId
+    const nextId = instancesResp.items.some((item) => item.id === preferredInstanceId)
+      ? preferredInstanceId
       : (instancesResp.items[0]?.id ?? "");
     setInstanceId(nextId);
 
@@ -205,7 +241,7 @@ export function App() {
     const resourcesResp = await safe(
       () =>
         apiGet<ResourceResp>(
-          `/api/resources?source=${source}&instanceId=${encodeURIComponent(nextId)}&q=${encodeURIComponent(query)}&offset=0&limit=50&refreshMode=incremental&includeDirs=false`
+          `/api/resources?source=${nextSource}&instanceId=${encodeURIComponent(nextId)}&q=${encodeURIComponent(nextQuery)}&offset=0&limit=50&refreshMode=incremental&includeDirs=false`
         )
     );
     if (resourcesResp) setResources(resourcesResp);
@@ -239,14 +275,142 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function saveProfile(): Promise<void> {
+    const name = profileDraftName.trim() || "管理员";
+    setProfileName(name);
+    setProfileDraftName(name);
+    localStorage.setItem(PROFILE_NAME_KEY, name);
+    if (profileAvatar) {
+      localStorage.setItem(PROFILE_AVATAR_KEY, profileAvatar);
+    } else {
+      localStorage.removeItem(PROFILE_AVATAR_KEY);
+    }
+    setToast("资料已保存");
+  }
+
+  async function updateAvatar(file: File | null): Promise<void> {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setToast("请选择图片文件");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      setProfileAvatar(value);
+    };
+    reader.onerror = () => {
+      setToast("头像读取失败");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function renderProfileEditor(): React.ReactNode {
+    if (!showProfileEditor) return null;
+    return (
+      <div className="m-modal-mask" onClick={() => setShowProfileEditor(false)}>
+        <section className="m-profile-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="m-profile-header">
+            <h3>个人资料</h3>
+            <button type="button" className="m-btn m-btn-ghost" onClick={() => setShowProfileEditor(false)}>
+              关闭
+            </button>
+          </div>
+
+          <div className="m-profile-block">
+            <label className="m-profile-avatar-picker">
+              {profileAvatar ? <img src={profileAvatar} alt="头像" /> : <span>{initials(profileName)}</span>}
+              <input type="file" accept="image/*" onChange={(event) => void updateAvatar(event.target.files?.[0] ?? null)} />
+            </label>
+            <div className="m-profile-name-editor">
+              <input
+                className="m-input"
+                value={profileDraftName}
+                onChange={(event) => setProfileDraftName(event.target.value)}
+                placeholder="资源管理器用户名"
+              />
+              <button type="button" className="m-btn" onClick={() => void saveProfile()}>
+                保存资料
+              </button>
+            </div>
+          </div>
+
+          <div className="m-profile-block">
+            <p className="m-muted">认证开关</p>
+            <div className="m-actions-row">
+              <input
+                className="m-input"
+                type="password"
+                value={enablePassword}
+                onChange={(event) => setEnablePassword(event.target.value)}
+                placeholder="认证开关密码"
+              />
+              <button
+                type="button"
+                className="m-btn"
+                onClick={() =>
+                  void safe(async () => {
+                    await apiPost("/api/auth/set-enabled", {
+                      enabled: !authStatus.enabled,
+                      password: enablePassword || undefined
+                    });
+                    const status = await apiGet<AuthStatus>("/api/auth/status");
+                    setAuthStatus(status);
+                    setEnablePassword("");
+                  })
+                }
+              >
+                {authStatus.enabled ? "关闭认证" : "启用认证"}
+              </button>
+            </div>
+          </div>
+
+          <div className="m-profile-block">
+            <p className="m-muted">修改密码</p>
+            <div className="m-actions-row">
+              <input
+                className="m-input"
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                placeholder="当前密码"
+              />
+              <input
+                className="m-input"
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="新密码"
+              />
+              <button
+                type="button"
+                className="m-btn"
+                onClick={() =>
+                  void safe(async () => {
+                    await apiPost("/api/auth/change-password", { currentPassword, newPassword });
+                    setCurrentPassword("");
+                    setNewPassword("");
+                    setToast("密码已修改");
+                  })
+                }
+              >
+                修改密码
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   function renderHome(): React.ReactNode {
     return (
       <section className="m-home-page">
         <section className="m-home-hero">
           <div className="m-home-hero-top">
-            <div className="m-home-avatar" aria-hidden="true">
-              ST
-            </div>
+            <button type="button" className="m-profile-trigger" onClick={() => setShowProfileEditor(true)} aria-label="打开个人资料">
+              {profileAvatar ? <img src={profileAvatar} alt="头像" /> : <span>{initials(profileName)}</span>}
+            </button>
             <button
               type="button"
               className="m-home-close"
@@ -260,13 +424,22 @@ export function App() {
             </button>
           </div>
 
+          <p className="m-home-owner">{profileName}</p>
           <h2 className="m-home-name">{currentInstance?.name ?? "默认实例"}</h2>
           <p className="m-home-sub">{currentInstance?.isRunning ? "运行中的 SillyTavern 实例" : "待机中的 SillyTavern 实例"}</p>
           <p className="m-home-path">{currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern"}</p>
         </section>
 
         <section className="m-home-instance-wrap">
-          <select className="m-home-instance-select" value={instanceId} onChange={(event) => setInstanceId(event.target.value)}>
+          <select
+            className="m-home-instance-select"
+            value={instanceId}
+            onChange={(event) => {
+              const nextId = event.target.value;
+              setInstanceId(nextId);
+              void loadAll({ instanceId: nextId });
+            }}
+          >
             {instances.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
@@ -295,7 +468,7 @@ export function App() {
         <section className="m-home-summary">
           <div className="m-home-summary-head">
             <h3>资源总览</h3>
-            <button type="button" onClick={() => setTab("resources")}>
+            <button type="button" onClick={() => setActivePanel("resources")}>
               进入管理
             </button>
           </div>
@@ -323,7 +496,7 @@ export function App() {
         <section className="m-home-stats">
           <div className="m-home-stats-head">
             <h3>分类数量</h3>
-            <button type="button" onClick={() => setTab("resources")}>
+            <button type="button" onClick={() => setActivePanel("resources")}>
               查看全部
             </button>
           </div>
@@ -335,6 +508,25 @@ export function App() {
               </article>
             ))}
           </div>
+        </section>
+
+        <section className="m-home-modules">
+          <button type="button" className="m-home-module-card" onClick={() => setActivePanel("resources")}>
+            <h4>资源管理</h4>
+            <p>管理角色卡、世界书、预设、聊天记录及插件导入导出。</p>
+          </button>
+          <button type="button" className="m-home-module-card" onClick={() => setActivePanel("queue")}>
+            <h4>写入队列</h4>
+            <p>查看运行中排队任务，定位阻塞与失败原因。</p>
+          </button>
+          <button type="button" className="m-home-module-card" onClick={() => setActivePanel("git")}>
+            <h4>Git 同步</h4>
+            <p>在实例与 Vault 之间执行拉取更新。</p>
+          </button>
+          <button type="button" className="m-home-module-card" onClick={() => setActivePanel("settings")}>
+            <h4>系统设置</h4>
+            <p>控制自动更新、自动打开浏览器和旧版入口。</p>
+          </button>
         </section>
 
         <article className="m-home-rec">
@@ -349,10 +541,10 @@ export function App() {
     );
   }
 
-  function renderResources(): React.ReactNode {
+  function renderResourcesPanel(): React.ReactNode {
     return (
       <section className="m-card">
-        <h2>资源</h2>
+        <h2>资源管理</h2>
         <div className="m-actions-row">
           <select className="m-input" value={source} onChange={(event) => setSource(event.target.value as Source)}>
             <option value="all">全部</option>
@@ -360,7 +552,7 @@ export function App() {
             <option value="vault">Vault</option>
           </select>
           <input className="m-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="关键词" />
-          <button type="button" className="m-btn" onClick={() => void loadAll()}>
+          <button type="button" className="m-btn" onClick={() => void loadAll({ source, query, instanceId })}>
             搜索
           </button>
         </div>
@@ -479,10 +671,10 @@ export function App() {
     );
   }
 
-  function renderQueue(): React.ReactNode {
+  function renderQueuePanel(): React.ReactNode {
     return (
       <section className="m-card">
-        <h2>队列</h2>
+        <h2>写入队列</h2>
         <ul className="m-list-clean">
           {queue.map((job) => (
             <li key={job.id} className="m-resource-card">
@@ -497,10 +689,10 @@ export function App() {
     );
   }
 
-  function renderGit(): React.ReactNode {
+  function renderGitPanel(): React.ReactNode {
     return (
       <section className="m-card">
-        <h2>Git</h2>
+        <h2>Git 同步</h2>
         <div className="m-actions-row">
           <button
             type="button"
@@ -535,68 +727,10 @@ export function App() {
     );
   }
 
-  function renderSettings(): React.ReactNode {
+  function renderSettingsPanel(): React.ReactNode {
     return (
       <section className="m-card">
-        <h2>设置</h2>
-        <div className="m-actions-row">
-          <input
-            className="m-input"
-            type="password"
-            value={enablePassword}
-            onChange={(event) => setEnablePassword(event.target.value)}
-            placeholder="认证开关密码"
-          />
-          <button
-            type="button"
-            className="m-btn"
-            onClick={() =>
-              void safe(async () => {
-                await apiPost("/api/auth/set-enabled", {
-                  enabled: !authStatus.enabled,
-                  password: enablePassword || undefined
-                });
-                const status = await apiGet<AuthStatus>("/api/auth/status");
-                setAuthStatus(status);
-                setEnablePassword("");
-              })
-            }
-          >
-            {authStatus.enabled ? "关闭认证" : "启用认证"}
-          </button>
-        </div>
-
-        <div className="m-actions-row">
-          <input
-            className="m-input"
-            type="password"
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            placeholder="当前密码"
-          />
-          <input
-            className="m-input"
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            placeholder="新密码"
-          />
-          <button
-            type="button"
-            className="m-btn"
-            onClick={() =>
-              void safe(async () => {
-                await apiPost("/api/auth/change-password", { currentPassword, newPassword });
-                setCurrentPassword("");
-                setNewPassword("");
-                setToast("密码已修改");
-              })
-            }
-          >
-            修改密码
-          </button>
-        </div>
-
+        <h2>系统设置</h2>
         <div className="m-actions-row">
           <label className="m-check">
             <input
@@ -639,6 +773,47 @@ export function App() {
         <button type="button" className="m-btn m-btn-ghost" onClick={() => setLegacyMode(true)}>
           打开旧版界面
         </button>
+      </section>
+    );
+  }
+
+  function renderPanel(): React.ReactNode {
+    if (!activePanel) return null;
+
+    const title =
+      activePanel === "resources"
+        ? "资源管理"
+        : activePanel === "queue"
+          ? "写入队列"
+          : activePanel === "git"
+            ? "Git 同步"
+            : "系统设置";
+
+    return (
+      <section className="m-panel-page">
+        <header className="m-panel-top">
+          <button type="button" className="m-btn m-btn-ghost" onClick={() => setActivePanel(null)}>
+            返回首页
+          </button>
+          <h2>{title}</h2>
+          <button
+            type="button"
+            className="m-btn"
+            onClick={() => {
+              void loadAll();
+              setToast("已刷新");
+            }}
+          >
+            刷新
+          </button>
+        </header>
+
+        <div className="m-panel-content">
+          {activePanel === "resources" ? renderResourcesPanel() : null}
+          {activePanel === "queue" ? renderQueuePanel() : null}
+          {activePanel === "git" ? renderGitPanel() : null}
+          {activePanel === "settings" ? renderSettingsPanel() : null}
+        </div>
       </section>
     );
   }
@@ -733,57 +908,9 @@ export function App() {
 
   return (
     <div className="m-app">
-      {tab !== "home" ? (
-        <>
-          <header className="m-topbar">
-            <div>
-              <p className="m-label">ST RESOURCE MANAGER</p>
-              <h1>资源中心</h1>
-              <p className="m-subline">
-                {currentInstance?.name ?? "-"} · {currentInstance?.isRunning ? "运行中" : "未运行"}
-              </p>
-              <p className="m-subline m-break">{currentInstance?.rootPath ?? "-"}</p>
-            </div>
-            <button
-              type="button"
-              className="m-icon-btn"
-              onClick={() => {
-                void loadAll();
-                setToast("已刷新");
-              }}
-            >
-              刷新
-            </button>
-          </header>
-
-          <section className="m-instance-strip">
-            <select className="m-input" value={instanceId} onChange={(event) => setInstanceId(event.target.value)}>
-              {instances.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </section>
-        </>
-      ) : null}
-
-      <main className="m-main">
-        {tab === "home" ? renderHome() : null}
-        {tab === "resources" ? renderResources() : null}
-        {tab === "queue" ? renderQueue() : null}
-        {tab === "git" ? renderGit() : null}
-        {tab === "settings" ? renderSettings() : null}
-      </main>
-
-      <nav className="m-bottom-nav">
-        {TABS.map((item) => (
-          <button key={item.key} type="button" className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
+      {renderHome()}
+      {renderPanel()}
+      {renderProfileEditor()}
       {toast ? <div className="m-toast">{toast}</div> : null}
     </div>
   );
