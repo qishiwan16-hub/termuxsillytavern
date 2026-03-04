@@ -1,4 +1,5 @@
 ﻿import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import Fastify from "fastify";
@@ -103,6 +104,32 @@ function readBearerToken(authorization?: string): string | undefined {
   }
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   return match?.[1]?.trim();
+}
+
+const BROWSE_ROOT_PATH = path.resolve(
+  process.env.ST_MANAGER_BROWSE_ROOT || process.env.HOME || process.env.USERPROFILE || os.homedir()
+);
+
+function isPathInside(basePath: string, targetPath: string): boolean {
+  const rel = path.relative(basePath, targetPath);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+async function resolveBrowseDirectory(inputPath?: string): Promise<{ rootPath: string; currentPath: string }> {
+  const requested = path.resolve(inputPath?.trim() || BROWSE_ROOT_PATH);
+  const rootReal = await fs.realpath(BROWSE_ROOT_PATH).catch(() => BROWSE_ROOT_PATH);
+  const currentReal = await fs.realpath(requested).catch(() => requested);
+  if (!isPathInside(rootReal, currentReal)) {
+    throw new Error(`目录越界：仅允许浏览 ${rootReal}`);
+  }
+  const stat = await fs.stat(currentReal).catch(() => null);
+  if (!stat || !stat.isDirectory()) {
+    throw new Error("目标目录不存在或不可访问");
+  }
+  return {
+    rootPath: rootReal,
+    currentPath: currentReal
+  };
 }
 
 async function detectExtensionRelDir(rootPath: string): Promise<string> {
@@ -305,6 +332,36 @@ async function setup(): Promise<void> {
     time: new Date().toISOString(),
     dataRoot: APP_PATHS.dataRoot
   }));
+
+  app.get("/api/system/dirs", async (req, reply) => {
+    const query = z.object({ path: z.string().optional() }).parse(req.query ?? {});
+    try {
+      const resolved = await resolveBrowseDirectory(query.path);
+      const entries = (await fs.readdir(resolved.currentPath, { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+          const absPath = path.join(resolved.currentPath, entry.name);
+          return {
+            name: entry.name,
+            absPath: absPath.replace(/\\/g, "/")
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+      const parentPath = isPathInside(resolved.rootPath, path.resolve(resolved.currentPath, ".."))
+        ? path.resolve(resolved.currentPath, "..").replace(/\\/g, "/")
+        : null;
+      return {
+        rootPath: resolved.rootPath.replace(/\\/g, "/"),
+        currentPath: resolved.currentPath.replace(/\\/g, "/"),
+        parentPath,
+        entries
+      };
+    } catch (error) {
+      return reply.code(400).send({
+        error: error instanceof Error ? error.message : "目录读取失败"
+      });
+    }
+  });
 
   app.get("/api/auth/status", async () => {
     const status = authService.status();
@@ -1315,4 +1372,10 @@ main().catch((error) => {
   app.log.error(error);
   process.exit(1);
 });
+
+
+
+
+
+
 

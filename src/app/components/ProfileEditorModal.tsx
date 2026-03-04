@@ -1,5 +1,5 @@
 import React from "react";
-import type { Instance } from "../types";
+import type { DirectoryEntry } from "../types";
 
 interface ProfileEditorModalProps {
   open: boolean;
@@ -11,10 +11,19 @@ interface ProfileEditorModalProps {
   onSaveProfile: () => void;
   fontScale: number;
   onFontScaleChange: (value: number) => void;
-  instanceId: string;
-  instances: Instance[];
-  onInstanceChange: (instanceId: string) => void;
-  currentInstancePath: string;
+  projectPathDraft: string;
+  onProjectPathDraftChange: (value: string) => void;
+  onSaveProjectPath: () => void;
+  dirPickerOpen: boolean;
+  dirPickerLoading: boolean;
+  dirPickerRoot: string;
+  dirPickerCurrent: string;
+  dirPickerParent: string | null;
+  dirPickerEntries: DirectoryEntry[];
+  onOpenDirPicker: () => void;
+  onCloseDirPicker: () => void;
+  onNavigateDir: (absPath: string) => void;
+  onChooseDir: (absPath: string) => void;
   authEnabled: boolean;
   authToggleBusy: boolean;
   requireEnablePassword: boolean;
@@ -94,15 +103,71 @@ export function ProfileEditorModal(props: ProfileEditorModalProps): React.ReactN
         <div className="m-profile-block">
           <p className="m-muted">酒馆项目</p>
           <div className="m-profile-project-box">
-            <select className="m-input" value={props.instanceId} onChange={(event) => props.onInstanceChange(event.target.value)}>
-              {props.instances.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            <p className="m-muted m-break">当前路径：{props.currentInstancePath}</p>
+            <div className="m-project-path-row">
+              <input
+                className="m-input"
+                value={props.projectPathDraft}
+                onChange={(event) => props.onProjectPathDraftChange(event.target.value)}
+                placeholder="/data/data/com.termux/files/home/SillyTavern/data/default-user"
+              />
+              <button type="button" className="m-folder-btn" onClick={props.onOpenDirPicker} aria-label="打开目录选择">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2h6.5A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-10Z" />
+                </svg>
+              </button>
+            </div>
+            <div className="m-actions-row">
+              <button type="button" className="m-btn" onClick={props.onSaveProjectPath}>
+                保存路径
+              </button>
+            </div>
+            <p className="m-muted m-break">建议选择到 `data/default-user` 层级，资源会按该目录归类读取。</p>
           </div>
+
+          {props.dirPickerOpen ? (
+            <div className="m-dir-picker">
+              <div className="m-dir-picker-head">
+                <span className="m-muted">目录浏览器</span>
+                <button type="button" className="m-btn m-btn-ghost" onClick={props.onCloseDirPicker}>
+                  关闭
+                </button>
+              </div>
+              <p className="m-muted m-break">根目录：{props.dirPickerRoot || "-"}</p>
+              <p className="m-muted m-break">当前：{props.dirPickerCurrent || "-"}</p>
+              <div className="m-actions-row">
+                <button
+                  type="button"
+                  className="m-btn m-btn-ghost"
+                  disabled={!props.dirPickerParent}
+                  onClick={() => {
+                    if (props.dirPickerParent) props.onNavigateDir(props.dirPickerParent);
+                  }}
+                >
+                  上一级
+                </button>
+                <button type="button" className="m-btn m-btn-ghost" onClick={() => props.onChooseDir(props.dirPickerCurrent)}>
+                  选择当前目录
+                </button>
+              </div>
+              {props.dirPickerLoading ? <p className="m-muted">正在读取目录...</p> : null}
+              <ul className="m-dir-picker-list">
+                {props.dirPickerEntries.map((entry: DirectoryEntry) => (
+                  <li key={entry.absPath}>
+                    <p className="m-break">{entry.name}</p>
+                    <div className="m-actions-row">
+                      <button type="button" className="m-btn m-btn-ghost" onClick={() => props.onNavigateDir(entry.absPath)}>
+                        进入
+                      </button>
+                      <button type="button" className="m-btn" onClick={() => props.onChooseDir(entry.absPath)}>
+                        选择
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
         </div>
 
         <div className="m-profile-block">

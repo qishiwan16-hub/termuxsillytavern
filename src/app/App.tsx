@@ -28,6 +28,8 @@ import type {
   AuthMode,
   AuthStatus,
   Dashboard,
+  DirectoryBrowseResp,
+  DirectoryEntry,
   Instance,
   PanelKey,
   QueueJob,
@@ -55,6 +57,13 @@ export function App() {
   const [profileDraftName, setProfileDraftName] = useState("管理员");
   const [fontScale, setFontScale] = useState(0.5);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
+  const [projectPathDraft, setProjectPathDraft] = useState("");
+  const [dirPickerOpen, setDirPickerOpen] = useState(false);
+  const [dirPickerLoading, setDirPickerLoading] = useState(false);
+  const [dirPickerRoot, setDirPickerRoot] = useState("");
+  const [dirPickerCurrent, setDirPickerCurrent] = useState("");
+  const [dirPickerParent, setDirPickerParent] = useState<string | null>(null);
+  const [dirPickerEntries, setDirPickerEntries] = useState<DirectoryEntry[]>([]);
 
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState("");
@@ -146,6 +155,12 @@ export function App() {
       setFontScale(savedScale);
     }
   }, []);
+
+  useEffect(() => {
+    if (currentInstance?.rootPath) {
+      setProjectPathDraft(currentInstance.rootPath);
+    }
+  }, [currentInstance?.rootPath]);
 
   useEffect(() => {
     if (!toast) return;
@@ -254,6 +269,49 @@ export function App() {
     const value = Number.isFinite(nextScale) ? Math.min(1.2, Math.max(0.4, nextScale)) : 0.5;
     setFontScale(value);
     localStorage.setItem(FONT_SCALE_KEY, String(value));
+  }
+
+  function normalizeProjectPath(input: string): string {
+    const trimmed = input.trim().replace(/[\\/]+$/, "");
+    if (!trimmed) return "";
+    if (/[\\/]data[\\/]default-user$/i.test(trimmed)) return trimmed;
+    if (/[\\/]sillytavern$/i.test(trimmed)) return `${trimmed}/data/default-user`;
+    return `${trimmed}/data/default-user`;
+  }
+
+  async function saveProjectPath(): Promise<void> {
+    await safe(async () => {
+      if (!instanceId) {
+        setToast("请先选择项目");
+        return;
+      }
+      const normalized = normalizeProjectPath(projectPathDraft);
+      if (!normalized) {
+        setToast("请先输入路径");
+        return;
+      }
+      const updated = await apiPatch<Instance>(`/api/instances/${instanceId}`, { rootPath: normalized });
+      setProjectPathDraft(updated.rootPath);
+      setDirPickerOpen(false);
+      setToast("项目路径已更新");
+      await loadAll({ instanceId });
+    });
+  }
+
+  async function browseDirectories(targetPath?: string): Promise<void> {
+    setDirPickerLoading(true);
+    try {
+      const query = targetPath ? `?path=${encodeURIComponent(targetPath)}` : "";
+      const resp = await apiGet<DirectoryBrowseResp>(`/api/system/dirs${query}`);
+      setDirPickerRoot(resp.rootPath);
+      setDirPickerCurrent(resp.currentPath);
+      setDirPickerParent(resp.parentPath);
+      setDirPickerEntries(resp.entries);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDirPickerLoading(false);
+    }
   }
 
   async function toggleLoginProtection(nextEnabled: boolean, password?: string): Promise<void> {
@@ -528,6 +586,10 @@ export function App() {
   }
 
   const currentPath = currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern";
+  const displayProjectName =
+    currentInstance?.name && currentInstance.name.trim() === "默认实例"
+      ? profileName
+      : (currentInstance?.name ?? profileName);
   const panelBody =
     activePanel === "resources" ? (
       <ResourcesPanel
@@ -626,7 +688,7 @@ export function App() {
         profileAvatar={profileAvatar}
         profileName={profileName}
         profileInitials={initials(profileName)}
-        projectName={currentInstance?.name ?? "默认项目"}
+        projectName={displayProjectName}
         projectRunning={Boolean(currentInstance?.isRunning)}
         queueHealth={queueHealth}
         resourceTotal={dashboard?.selectedInstance?.resourceTotal ?? 0}
@@ -657,13 +719,27 @@ export function App() {
         onSaveProfile={() => void saveProfile()}
         fontScale={fontScale}
         onFontScaleChange={updateFontScale}
-        instanceId={instanceId}
-        instances={instances}
-        onInstanceChange={(nextId) => {
-          setInstanceId(nextId);
-          void loadAll({ instanceId: nextId });
+        projectPathDraft={projectPathDraft}
+        onProjectPathDraftChange={setProjectPathDraft}
+        onSaveProjectPath={() => void saveProjectPath()}
+        dirPickerOpen={dirPickerOpen}
+        dirPickerLoading={dirPickerLoading}
+        dirPickerRoot={dirPickerRoot}
+        dirPickerCurrent={dirPickerCurrent}
+        dirPickerParent={dirPickerParent}
+        dirPickerEntries={dirPickerEntries}
+        onOpenDirPicker={() => {
+          setDirPickerOpen(true);
+          void browseDirectories(projectPathDraft || currentPath);
         }}
-        currentInstancePath={currentPath}
+        onCloseDirPicker={() => setDirPickerOpen(false)}
+        onNavigateDir={(absPath) => {
+          void browseDirectories(absPath);
+        }}
+        onChooseDir={(absPath) => {
+          setProjectPathDraft(absPath);
+          setDirPickerCurrent(absPath);
+        }}
         authEnabled={authStatus.enabled}
         authToggleBusy={authToggleBusy}
         requireEnablePassword={requireEnablePassword}
@@ -675,7 +751,10 @@ export function App() {
         onCurrentPasswordChange={setCurrentPassword}
         onNewPasswordChange={setNewPassword}
         onChangePassword={() => void changePassword()}
-        onClose={() => setShowProfileEditor(false)}
+        onClose={() => {
+          setShowProfileEditor(false);
+          setDirPickerOpen(false);
+        }}
       />
 
       {toast ? <div className="m-toast">{toast}</div> : null}

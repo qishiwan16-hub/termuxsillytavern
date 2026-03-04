@@ -71,3 +71,15 @@ export interface ResourceStatItem {
   label: string;
   value: number;
 }
+
+export interface DirectoryEntry {
+  name: string;
+  absPath: string;
+}
+
+export interface DirectoryBrowseResp {
+  rootPath: string;
+  currentPath: string;
+  parentPath: string | null;
+  entries: DirectoryEntry[];
+}
