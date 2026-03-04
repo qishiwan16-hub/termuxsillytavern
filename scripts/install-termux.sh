@@ -14,15 +14,15 @@ npm install
 
 echo "[3/5] 构建前后端"
 BUILD_LOG="$(mktemp)"
-if npm run build 2>&1 | tee "$BUILD_LOG"; then
+if [ "${ST_SKIP_BUILD:-0}" = "1" ]; then
+  echo "已设置 ST_SKIP_BUILD=1，跳过构建"
+elif npm run build 2>&1 | tee "$BUILD_LOG"; then
   echo "构建成功"
 else
-  if grep -q "native Rollup build" "$BUILD_LOG"; then
-    echo "检测到 Rollup 原生包不支持当前 Termux 平台，切换为 WASM 版本后重试..."
-    npm install --save-dev "rollup@npm:@rollup/wasm-node@^4.59.0"
-    npm run build
+  if [ -f "dist/server/index.js" ] && [ -f "dist/client/index.html" ]; then
+    echo "构建失败，但检测到已存在 dist，继续使用预构建产物启动。"
   else
-    echo "构建失败（非 Rollup 平台问题），请根据上方日志修复。"
+    echo "构建失败且不存在可用 dist，请根据上方日志修复。"
     rm -f "$BUILD_LOG"
     exit 1
   fi

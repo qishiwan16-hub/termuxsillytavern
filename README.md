@@ -67,11 +67,17 @@ ls
 bash scripts/install-termux.sh
 ```
 
-方式 B：手动命令
+方式 B：手动命令（构建链路已改为 esbuild，不走 Rollup）
 ```bash
 npm install
 npm run build
 ```
+
+方式 C：快速启动（跳过构建）
+```bash
+bash scripts/start-quick.sh
+```
+适用场景：仓库已包含可用 `dist/` 时，直接安装运行时依赖并启动，不执行构建。
 
 ### 3. 启动服务
 方式 A：脚本启动
@@ -148,15 +154,17 @@ npm run test
 - 登录失败：确认密码正确；改密后需要重新登录。
 - 扫描结果不更新：在扫描页切换到 `全量刷新` 再执行一次。
 - 构建时报错 `native Rollup build` / `throwUnsupportedError`：
-  含义是当前设备平台架构无法使用 Rollup 原生二进制。执行以下命令切换到 WASM 版本即可：
+  先执行 `git pull` 更新到最新代码。当前版本的 `build:client` 已改为 `esbuild`，正常不会再触发 Rollup 报错。
+  更新后建议执行：
 ```bash
 cd ~/st-resource-manager
-rm -rf node_modules package-lock.json
 npm install
-npm install -D "rollup@npm:@rollup/wasm-node@^4.59.0"
 npm run build
 ```
-  只想先启动测试时，也可以跳过构建直接执行 `npm run start`（前提是 `dist/` 已存在）。
+  仍想跳过构建时，使用：
+```bash
+bash scripts/start-quick.sh
+```
 
 ## 核心 API（简表）
 - 认证：`/api/auth/*`
