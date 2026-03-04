@@ -30,7 +30,7 @@ const jsOutput = outputs.find((item) => item.endsWith(".js"));
 const cssOutput = outputs.find((item) => item.endsWith(".css"));
 
 if (!jsOutput) {
-  throw new Error("客户端构建失败：未生成 JS 产物");
+  throw new Error("Client build failed: missing JS output.");
 }
 
 const html = [
@@ -54,7 +54,7 @@ const html = [
 
 await fs.writeFile(path.resolve(clientDir, "index.html"), html, "utf8");
 
-console.log("客户端构建完成:", {
+console.log("Client build complete:", {
   js: path.basename(jsOutput),
   css: cssOutput ? path.basename(cssOutput) : null
 });
