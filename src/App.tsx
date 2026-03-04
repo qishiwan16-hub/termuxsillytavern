@@ -85,14 +85,14 @@ const RESOURCE_TYPE_LABELS: Array<{ key: string; label: string }> = [
   { key: "world", label: "世界书" },
   { key: "preset", label: "预设" },
   { key: "chat", label: "聊天记录" },
-  { key: "prompt", label: "提示词" },
+  { key: "prompt", label: "全局扩展" },
   { key: "plugin", label: "插件" },
   { key: "extension", label: "扩展" },
   { key: "theme", label: "主题美化" },
-  { key: "asset", label: "素材资源" },
-  { key: "config", label: "配置文件" },
   { key: "other", label: "其他" }
 ];
+
+const HIDDEN_HOME_STAT_KEYS = new Set(["asset", "config"]);
 
 function toVaultId(resourceId: string): string {
   return resourceId.replace(/^vault:/, "");
@@ -103,20 +103,6 @@ function toShortDate(value?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString("zh-CN", { hour12: false });
-}
-
-function buildPlateCode(seed: string): string {
-  const source = seed || "ST0000";
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
-  let hash = 0;
-  for (let index = 0; index < source.length; index += 1) {
-    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
-  }
-  let out = "";
-  for (let index = 0; index < 5; index += 1) {
-    out += chars[(hash + index * 17) % chars.length];
-  }
-  return `京A·${out}`;
 }
 
 export function App() {
@@ -151,7 +137,6 @@ export function App() {
     () => resources.items.filter((item) => selectedIds.includes(item.id)),
     [resources.items, selectedIds]
   );
-  const plateCode = useMemo(() => buildPlateCode(instanceId), [instanceId]);
   const queueHealth = useMemo(() => {
     const total = dashboard?.queueStats.total ?? 0;
     const blocked = dashboard?.queueStats.blocked ?? 0;
@@ -162,7 +147,7 @@ export function App() {
   }, [dashboard]);
   const beautifyCount = useMemo(() => {
     const stats = dashboard?.resourceStats ?? {};
-    return (stats.theme ?? 0) + (stats.asset ?? 0);
+    return stats.theme ?? 0;
   }, [dashboard]);
   const homeStats = useMemo<ResourceStatItem[]>(() => {
     const stats = dashboard?.resourceStats ?? {};
@@ -173,6 +158,7 @@ export function App() {
     }));
     const extra = Object.keys(stats)
       .filter((key) => !RESOURCE_TYPE_LABELS.some((item) => item.key === key))
+      .filter((key) => !HIDDEN_HOME_STAT_KEYS.has(key))
       .map((key) => ({
         key,
         label: key,
@@ -277,10 +263,6 @@ export function App() {
           <h2 className="m-home-name">{currentInstance?.name ?? "默认实例"}</h2>
           <p className="m-home-sub">{currentInstance?.isRunning ? "运行中的 SillyTavern 实例" : "待机中的 SillyTavern 实例"}</p>
           <p className="m-home-path">{currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern"}</p>
-
-          <button type="button" className="m-home-plate" onClick={() => setTab("resources")}>
-            {plateCode}
-          </button>
         </section>
 
         <section className="m-home-instance-wrap">
@@ -332,14 +314,19 @@ export function App() {
               <strong>{dashboard?.queueStats.failed ?? 0}</strong>
             </p>
             <p>
-              <span>美化资源</span>
+              <span>主题美化</span>
               <strong>{beautifyCount}</strong>
             </p>
           </div>
         </section>
 
         <section className="m-home-stats">
-          <h3>分类数量</h3>
+          <div className="m-home-stats-head">
+            <h3>分类数量</h3>
+            <button type="button" onClick={() => setTab("resources")}>
+              查看全部
+            </button>
+          </div>
           <div className="m-home-stat-grid">
             {homeStats.map((item) => (
               <article key={item.key} className="m-home-stat-card">
