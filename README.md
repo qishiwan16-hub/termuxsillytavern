@@ -23,6 +23,25 @@
 
 ## 配置流程（从 0 到可用）
 
+### -1. 云端一键拉取（首次安装推荐）
+你本地还没有项目代码时，直接在 Termux 执行：
+```bash
+pkg install curl -y
+curl -fsSL https://raw.githubusercontent.com/qishiwan16-hub/termuxsillytavern/main/bootstrap-termux.sh | bash
+```
+
+说明：
+- 这条命令会自动把项目拉到 `~/st-resource-manager`（可用 `ST_INSTALL_DIR` 改路径）。
+- 已有项目时会先尝试更新，再继续启动。
+- 启动动作默认是 `start`。
+
+可选：执行其他动作（例如 `status` / `logs` / `restart`）：
+```bash
+curl -fsSL https://raw.githubusercontent.com/qishiwan16-hub/termuxsillytavern/main/bootstrap-termux.sh | bash -s -- status
+curl -fsSL https://raw.githubusercontent.com/qishiwan16-hub/termuxsillytavern/main/bootstrap-termux.sh | bash -s -- logs
+curl -fsSL https://raw.githubusercontent.com/qishiwan16-hub/termuxsillytavern/main/bootstrap-termux.sh | bash -s -- restart
+```
+
 ### 0. 一键启动（最简入口，推荐）
 打开 Termux 后，直接执行：
 ```bash
