@@ -19,6 +19,8 @@ const result = await build({
   format: "iife",
   globalName: "STResourceManagerApp",
   platform: "browser",
+  jsx: "automatic",
+  jsxImportSource: "react",
   // Older Android emulators may fail to parse newer syntax.
   target: ["es2017"],
   outdir: assetsDir,
@@ -31,6 +33,7 @@ const result = await build({
 const outputs = Object.keys(result.metafile.outputs);
 const jsOutput = outputs.find((item) => item.endsWith(".js"));
 const cssOutput = outputs.find((item) => item.endsWith(".css"));
+const buildVersion = Date.now().toString(36);
 
 if (!jsOutput) {
   throw new Error("Client build failed: missing JS output.");
@@ -43,8 +46,8 @@ const html = [
   '    <meta charset="UTF-8" />',
   '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
   "    <title>ST Resource Manager</title>",
-  cssOutput ? `    <link rel="stylesheet" href="/assets/${path.basename(cssOutput)}" />` : "",
-  `    <script src="/assets/${path.basename(jsOutput)}" defer></script>`,
+  cssOutput ? `    <link rel="stylesheet" href="/assets/${path.basename(cssOutput)}?v=${buildVersion}" />` : "",
+  `    <script src="/assets/${path.basename(jsOutput)}?v=${buildVersion}" defer></script>`,
   "  </head>",
   "  <body>",
   '    <div id="root"></div>',

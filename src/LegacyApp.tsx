@@ -1,4 +1,4 @@
-﻿import { type JSX, useEffect, useMemo, useState } from "react";
+﻿import React, { type JSX, useEffect, useMemo, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { json as jsonLang } from "@codemirror/lang-json";
 import {
