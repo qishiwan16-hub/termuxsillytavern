@@ -13,7 +13,6 @@ interface HomePageProps {
   projectName: string;
   projectRunning: boolean;
   queueHealth: number;
-  resourceTotal: number;
   version?: string;
   queueTotal: number;
   queueFailed: number;
@@ -70,8 +69,8 @@ export function HomePage(props: HomePageProps): React.ReactNode {
         </div>
 
         <div className="m-home-metric">
-          <p className="m-home-metric-label">资源总数</p>
-          <p className="m-home-metric-value">{props.resourceTotal.toLocaleString("zh-CN")}</p>
+          <p className="m-home-metric-label">当前酒馆版本</p>
+          <p className="m-home-metric-value">{props.version ?? "unknown"}</p>
         </div>
       </section>
 

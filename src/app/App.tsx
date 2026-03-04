@@ -125,7 +125,6 @@ export function App() {
   const homeCenterRows = useMemo(() => {
     const stats = dashboard?.resourceStats ?? {};
     return [
-      { label: "资源总数", value: dashboard?.selectedInstance?.resourceTotal ?? 0 },
       { label: "角色卡", value: stats.character ?? 0 },
       { label: "世界书", value: stats.world ?? 0 },
       { label: "预设", value: stats.preset ?? 0 },
@@ -751,7 +750,6 @@ export function App() {
         projectName={displayProjectName}
         projectRunning={Boolean(currentInstance?.isRunning)}
         queueHealth={queueHealth}
-        resourceTotal={dashboard?.selectedInstance?.resourceTotal ?? 0}
         version={dashboard?.selectedInstance?.version ?? "unknown"}
         queueTotal={dashboard?.queueStats.total ?? 0}
         queueFailed={dashboard?.queueStats.failed ?? 0}
