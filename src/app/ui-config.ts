@@ -1,6 +1,7 @@
 export const PROFILE_NAME_KEY = "st_manager_profile_name";
 export const PROFILE_AVATAR_KEY = "st_manager_profile_avatar";
 export const FONT_SCALE_KEY = "st_manager_font_scale";
+export const PROJECT_PATH_FAVORITES_KEY = "st_manager_project_path_favorites";
 
 export const RESOURCE_TYPE_LABELS: Array<{ key: string; label: string }> = [
   { key: "character", label: "角色卡" },

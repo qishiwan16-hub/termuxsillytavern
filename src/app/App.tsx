@@ -12,6 +12,7 @@ import {
 import {
   FONT_SCALE_KEY,
   HIDDEN_HOME_STAT_KEYS,
+  PROJECT_PATH_FAVORITES_KEY,
   PROFILE_AVATAR_KEY,
   PROFILE_NAME_KEY,
   RESOURCE_TYPE_LABELS,
@@ -58,6 +59,7 @@ export function App() {
   const [fontScale, setFontScale] = useState(0.5);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [projectPathDraft, setProjectPathDraft] = useState("");
+  const [projectPathFavorites, setProjectPathFavorites] = useState<string[]>([]);
   const [dirPickerOpen, setDirPickerOpen] = useState(false);
   const [dirPickerLoading, setDirPickerLoading] = useState(false);
   const [dirPickerRoot, setDirPickerRoot] = useState("");
@@ -144,6 +146,7 @@ export function App() {
     const savedName = localStorage.getItem(PROFILE_NAME_KEY)?.trim();
     const savedAvatar = localStorage.getItem(PROFILE_AVATAR_KEY) ?? "";
     const savedScale = Number(localStorage.getItem(FONT_SCALE_KEY));
+    const savedProjectPathFavorites = localStorage.getItem(PROJECT_PATH_FAVORITES_KEY);
     if (savedName) {
       setProfileName(savedName);
       setProfileDraftName(savedName);
@@ -153,6 +156,23 @@ export function App() {
     }
     if (!Number.isNaN(savedScale) && savedScale >= 0.4 && savedScale <= 1.2) {
       setFontScale(savedScale);
+    }
+    if (savedProjectPathFavorites) {
+      try {
+        const parsed = JSON.parse(savedProjectPathFavorites);
+        if (Array.isArray(parsed)) {
+          const cleaned = Array.from(
+            new Set(
+              parsed
+                .map((item) => (typeof item === "string" ? normalizeProjectPath(item) : ""))
+                .filter((item) => item.length > 0)
+            )
+          ).slice(0, 20);
+          setProjectPathFavorites(cleaned);
+        }
+      } catch {
+        localStorage.removeItem(PROJECT_PATH_FAVORITES_KEY);
+      }
     }
   }, []);
 
@@ -271,12 +291,47 @@ export function App() {
     localStorage.setItem(FONT_SCALE_KEY, String(value));
   }
 
+  function persistProjectPathFavorites(next: string[]): void {
+    const cleaned = Array.from(
+      new Set(
+        next
+          .map((item) => (typeof item === "string" ? normalizeProjectPath(item) : ""))
+          .filter((item) => item.length > 0)
+      )
+    ).slice(0, 20);
+    setProjectPathFavorites(cleaned);
+    localStorage.setItem(PROJECT_PATH_FAVORITES_KEY, JSON.stringify(cleaned));
+  }
+
   function normalizeProjectPath(input: string): string {
     const trimmed = input.trim().replace(/[\\/]+$/, "");
     if (!trimmed) return "";
     if (/[\\/]data[\\/]default-user$/i.test(trimmed)) return trimmed;
     if (/[\\/]sillytavern$/i.test(trimmed)) return `${trimmed}/data/default-user`;
     return `${trimmed}/data/default-user`;
+  }
+
+  function toggleFavoriteProjectPath(): void {
+    const normalized = normalizeProjectPath(projectPathDraft);
+    if (!normalized) {
+      setToast("请先输入路径");
+      return;
+    }
+    const exists = projectPathFavorites.includes(normalized);
+    const next = exists
+      ? projectPathFavorites.filter((item) => item !== normalized)
+      : [normalized, ...projectPathFavorites];
+    persistProjectPathFavorites(next);
+    if (!exists) {
+      setProjectPathDraft(normalized);
+    }
+    setToast(exists ? "已取消收藏路径" : "已收藏路径");
+  }
+
+  function selectFavoriteProjectPath(value: string): void {
+    const next = value.trim();
+    if (!next) return;
+    setProjectPathDraft(next);
   }
 
   async function saveProjectPath(): Promise<void> {
@@ -585,6 +640,11 @@ export function App() {
     setToast("已刷新");
   }
 
+  const normalizedProjectPathDraft = normalizeProjectPath(projectPathDraft);
+  const projectPathFavoriteValue = projectPathFavorites.includes(normalizedProjectPathDraft)
+    ? normalizedProjectPathDraft
+    : "";
+  const projectPathFavoriteActive = normalizedProjectPathDraft.length > 0 && projectPathFavoriteValue.length > 0;
   const currentPath = currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern";
   const displayProjectName =
     currentInstance?.name && currentInstance.name.trim() === "默认实例"
@@ -721,6 +781,11 @@ export function App() {
         onFontScaleChange={updateFontScale}
         projectPathDraft={projectPathDraft}
         onProjectPathDraftChange={setProjectPathDraft}
+        projectPathFavorites={projectPathFavorites}
+        projectPathFavoriteValue={projectPathFavoriteValue}
+        projectPathFavoriteActive={projectPathFavoriteActive}
+        onSelectProjectPathFavorite={selectFavoriteProjectPath}
+        onToggleProjectPathFavorite={toggleFavoriteProjectPath}
         onSaveProjectPath={() => void saveProjectPath()}
         dirPickerOpen={dirPickerOpen}
         dirPickerLoading={dirPickerLoading}

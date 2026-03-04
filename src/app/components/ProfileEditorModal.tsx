@@ -13,6 +13,11 @@ interface ProfileEditorModalProps {
   onFontScaleChange: (value: number) => void;
   projectPathDraft: string;
   onProjectPathDraftChange: (value: string) => void;
+  projectPathFavorites: string[];
+  projectPathFavoriteValue: string;
+  projectPathFavoriteActive: boolean;
+  onSelectProjectPathFavorite: (value: string) => void;
+  onToggleProjectPathFavorite: () => void;
   onSaveProjectPath: () => void;
   dirPickerOpen: boolean;
   dirPickerLoading: boolean;
@@ -115,6 +120,31 @@ export function ProfileEditorModal(props: ProfileEditorModalProps): React.ReactN
                   <path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2h6.5A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-10Z" />
                 </svg>
               </button>
+              <button
+                type="button"
+                className={`m-folder-btn m-favorite-btn${props.projectPathFavoriteActive ? " active" : ""}`}
+                onClick={props.onToggleProjectPathFavorite}
+                aria-label={props.projectPathFavoriteActive ? "取消收藏路径" : "收藏路径"}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18l-6-3-6 3V4z" />
+                </svg>
+              </button>
+            </div>
+            <div className="m-project-favorite-row">
+              <select
+                className="m-input m-path-favorite-select"
+                value={props.projectPathFavoriteValue}
+                onChange={(event) => props.onSelectProjectPathFavorite(event.target.value)}
+                disabled={props.projectPathFavorites.length === 0}
+              >
+                <option value="">选择收藏路径</option>
+                {props.projectPathFavorites.map((path) => (
+                  <option key={path} value={path}>
+                    {path}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="m-actions-row">
               <button type="button" className="m-btn" onClick={props.onSaveProjectPath}>
@@ -167,7 +197,6 @@ export function ProfileEditorModal(props: ProfileEditorModalProps): React.ReactN
               </ul>
             </div>
           ) : null}
-        </div>
         </div>
 
         <div className="m-profile-block">
