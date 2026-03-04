@@ -335,8 +335,8 @@ body {
 }
 
 .m-topbar h1 {
-  margin: 8px 0 10px;
-  font-size: clamp(38px, 11vw, 64px);
+  margin: 6px 0 8px;
+  font-size: clamp(30px, 8.8vw, 46px);
   line-height: 1;
   font-family: "Noto Serif SC", serif;
   font-weight: 600;
@@ -627,46 +627,47 @@ body {
 }
 
 .m-home-hero {
-  min-height: 210px;
+  min-height: 160px;
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
 }
 
 .m-home-hero-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
 }
 
 .m-home-avatar {
-  width: 60px;
-  height: 60px;
+  width: 54px;
+  height: 54px;
   border-radius: 999px;
   background: #ececec;
   border: 1px solid #d7d7d7;
   color: #737373;
-  font-size: 16px;
+  font-size: 18px;
   display: grid;
   place-items: center;
   font-family: "Noto Serif SC", serif;
 }
 
 .m-home-close {
-  border: none;
-  background: transparent;
+  border: 1px solid #d0d0d0;
+  background: #fafafa;
   color: #141414;
-  font-size: 52px;
-  line-height: 0.8;
-  padding: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1;
+  padding: 8px 12px;
 }
 
 .m-home-name {
   margin: 0;
   font-family: "Noto Serif SC", serif;
-  font-size: clamp(46px, 12vw, 66px);
-  line-height: 1.02;
+  font-size: clamp(36px, 9.8vw, 52px);
+  line-height: 1.08;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -674,21 +675,29 @@ body {
 .m-home-sub {
   margin: 0;
   color: #595959;
-  font-size: clamp(20px, 5.5vw, 33px);
-  line-height: 1.32;
+  font-size: clamp(16px, 4.6vw, 24px);
+  line-height: 1.4;
+}
+
+.m-home-path {
+  margin: 0;
+  color: #7a7a7a;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .m-home-plate {
-  margin-top: 8px;
+  margin-top: 6px;
   width: fit-content;
   border: 1px solid #0f0f0f;
   background: #111;
   color: #fff;
-  border-radius: 4px;
-  padding: 14px 40px;
-  font-size: 30px;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 21px;
   line-height: 1;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   font-weight: 600;
 }
 
@@ -702,9 +711,9 @@ body {
   border: 2px solid #2f2f2f;
   background: #f2f2f2;
   color: #222;
-  border-radius: 18px;
-  padding: 15px 18px;
-  font-size: 34px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 20px;
   line-height: 1.2;
 }
 
@@ -725,14 +734,14 @@ body {
 .m-home-metric-label {
   margin: 0;
   color: #666;
-  letter-spacing: 0.15em;
-  font-size: 14px;
+  letter-spacing: 0.08em;
+  font-size: 12px;
 }
 
 .m-home-metric-value {
   margin: 10px 0 0;
   font-family: "Noto Serif SC", serif;
-  font-size: clamp(50px, 13vw, 78px);
+  font-size: clamp(36px, 10vw, 52px);
   line-height: 0.92;
   color: #151515;
 }
@@ -748,75 +757,105 @@ body {
   background: #e3e3e3;
 }
 
-.m-home-float {
-  position: absolute;
-  left: 14px;
-  top: 434px;
-  width: 62px;
-  height: 62px;
-  border-radius: 999px;
-  border: none;
-  background: #8a8d92;
-  color: #fff;
-  font-size: 28px;
-  line-height: 1;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
-}
-
-.m-home-grid {
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.m-home-panel {
-  min-height: 260px;
+.m-home-summary {
+  margin-top: 14px;
   border: 1px solid #e2e2e2;
-  border-radius: 2px;
   background: #f7f7f7;
-  padding: 16px;
-  display: grid;
-  align-content: start;
-  gap: 16px;
+  border-radius: 10px;
+  padding: 12px;
 }
 
-.m-home-panel-head {
+.m-home-summary-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #595959;
-  font-size: 14px;
+  margin-bottom: 8px;
 }
 
-.m-home-panel-head button {
+.m-home-summary-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-family: "Noto Serif SC", serif;
+}
+
+.m-home-summary-head button {
   border: none;
   background: transparent;
-  color: #7c7c7c;
-  font-size: 14px;
+  color: #6d6d6d;
+  font-size: 13px;
 }
 
-.m-home-panel-main {
+.m-home-kv {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.m-home-kv p {
   margin: 0;
-  font-size: 18px;
-  line-height: 1.45;
-  color: #1f1f1f;
+  border: 1px solid #e4e4e4;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fafafa;
+  display: grid;
+  gap: 4px;
+}
+
+.m-home-kv span {
+  color: #868686;
+  font-size: 12px;
+}
+
+.m-home-kv strong {
+  color: #191919;
+  font-size: 15px;
   overflow-wrap: anywhere;
 }
 
-.m-home-panel-foot {
+.m-home-stats {
+  margin-top: 14px;
+}
+
+.m-home-stats h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-family: "Noto Serif SC", serif;
+}
+
+.m-home-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.m-home-stat-card {
+  border: 1px solid #e3e3e3;
+  border-radius: 10px;
+  background: #f7f7f7;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.m-home-stat-card p {
   margin: 0;
-  color: #9a9a9a;
-  letter-spacing: 0.08em;
+  color: #6f6f6f;
   font-size: 12px;
+}
+
+.m-home-stat-card strong {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 20px;
+  line-height: 1;
 }
 
 .m-home-rec {
   margin-top: 14px;
   border: 1px solid #e2e2e2;
   background: #f7f7f7;
-  border-radius: 2px;
-  padding: 20px 16px;
+  border-radius: 10px;
+  padding: 14px 12px;
 }
 
 .m-home-rec-label {
@@ -837,9 +876,9 @@ body {
 }
 
 .m-home-rec-title {
-  margin: 16px 0 0;
+  margin: 10px 0 0;
   font-family: "Noto Serif SC", serif;
-  font-size: 34px;
+  font-size: 24px;
   color: #1c1c1c;
 }
 
@@ -972,47 +1011,32 @@ body {
     border-left: 1px solid #e3e3e3;
     border-right: 1px solid #e3e3e3;
   }
-  .m-home-float {
-    left: 22px;
-  }
 }
 
 @media (max-width: 420px) {
   .m-home-instance-select {
-    font-size: 30px;
+    font-size: 18px;
   }
 
   .m-home-name {
-    font-size: 44px;
+    font-size: 34px;
   }
 
   .m-home-sub {
-    font-size: 22px;
+    font-size: 17px;
   }
 
   .m-home-plate {
-    font-size: 24px;
-    padding: 12px 30px;
-  }
-
-  .m-home-float {
-    top: 408px;
-    width: 58px;
-    height: 58px;
-    font-size: 24px;
-  }
-
-  .m-home-grid {
-    gap: 8px;
-  }
-
-  .m-home-panel {
-    min-height: 230px;
-    padding: 12px;
+    font-size: 18px;
+    padding: 9px 16px;
   }
 
   .m-home-rec-title {
-    font-size: 30px;
+    font-size: 21px;
+  }
+
+  .m-home-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

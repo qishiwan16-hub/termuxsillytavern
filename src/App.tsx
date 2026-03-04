@@ -60,8 +60,16 @@ interface AppSettings {
 }
 
 interface Dashboard {
-  selectedInstance?: { name: string; rootPath: string; version: string; resourceTotal: number; isRunning: boolean };
-  queueStats: { total: number; blocked: number; failed: number; updatedAt: string };
+  selectedInstanceId: string | null;
+  selectedInstance?: { id?: string; name: string; rootPath: string; version: string; resourceTotal: number; isRunning: boolean };
+  resourceStats?: Record<string, number>;
+  queueStats: { total: number; blocked: number; failed: number; running?: number; pending?: number; updatedAt: string };
+}
+
+interface ResourceStatItem {
+  key: string;
+  label: string;
+  value: number;
 }
 
 const TABS: Array<{ key: Tab; label: string }> = [
@@ -72,18 +80,28 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: "settings", label: "设置" }
 ];
 
+const RESOURCE_TYPE_LABELS: Array<{ key: string; label: string }> = [
+  { key: "character", label: "角色卡" },
+  { key: "world", label: "世界书" },
+  { key: "preset", label: "预设" },
+  { key: "chat", label: "聊天记录" },
+  { key: "prompt", label: "提示词" },
+  { key: "plugin", label: "插件" },
+  { key: "extension", label: "扩展" },
+  { key: "theme", label: "主题美化" },
+  { key: "asset", label: "素材资源" },
+  { key: "config", label: "配置文件" },
+  { key: "other", label: "其他" }
+];
+
 function toVaultId(resourceId: string): string {
   return resourceId.replace(/^vault:/, "");
 }
 
 function toShortDate(value?: string): string {
-  if (!value) {
-    return "-";
-  }
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+  if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
@@ -110,6 +128,7 @@ export function App() {
   const [enablePassword, setEnablePassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState("");
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
@@ -127,10 +146,7 @@ export function App() {
   const [gitResult, setGitResult] = useState("");
   const [toast, setToast] = useState("");
 
-  const currentInstance = useMemo(
-    () => instances.find((item) => item.id === instanceId),
-    [instances, instanceId]
-  );
+  const currentInstance = useMemo(() => instances.find((item) => item.id === instanceId), [instances, instanceId]);
   const selectedItems = useMemo(
     () => resources.items.filter((item) => selectedIds.includes(item.id)),
     [resources.items, selectedIds]
@@ -140,20 +156,35 @@ export function App() {
     const total = dashboard?.queueStats.total ?? 0;
     const blocked = dashboard?.queueStats.blocked ?? 0;
     const failed = dashboard?.queueStats.failed ?? 0;
-    if (total === 0) {
-      return 100;
-    }
+    if (total === 0) return 100;
     const healthy = Math.max(0, total - blocked - failed);
     return Math.round((healthy / total) * 100);
   }, [dashboard]);
+  const beautifyCount = useMemo(() => {
+    const stats = dashboard?.resourceStats ?? {};
+    return (stats.theme ?? 0) + (stats.asset ?? 0);
+  }, [dashboard]);
+  const homeStats = useMemo<ResourceStatItem[]>(() => {
+    const stats = dashboard?.resourceStats ?? {};
+    const base = RESOURCE_TYPE_LABELS.map((item) => ({
+      key: item.key,
+      label: item.label,
+      value: stats[item.key] ?? 0
+    }));
+    const extra = Object.keys(stats)
+      .filter((key) => !RESOURCE_TYPE_LABELS.some((item) => item.key === key))
+      .map((key) => ({
+        key,
+        label: key,
+        value: stats[key] ?? 0
+      }))
+      .filter((item) => item.value > 0);
+    return [...base, ...extra];
+  }, [dashboard]);
 
   useEffect(() => {
-    if (!toast) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setToast("");
-    }, 2600);
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
@@ -172,11 +203,9 @@ export function App() {
 
   async function loadAll(): Promise<void> {
     const instancesResp = await safe(() => apiGet<{ items: Instance[] }>("/api/instances"));
-    if (!instancesResp) {
-      return;
-    }
-
+    if (!instancesResp) return;
     setInstances(instancesResp.items);
+
     const nextId = instancesResp.items.some((item) => item.id === instanceId)
       ? instanceId
       : (instancesResp.items[0]?.id ?? "");
@@ -185,9 +214,7 @@ export function App() {
     const dashboardResp = await safe(
       () => apiGet<Dashboard>(`/api/dashboard/summary${nextId ? `?instanceId=${encodeURIComponent(nextId)}` : ""}`)
     );
-    if (dashboardResp) {
-      setDashboard(dashboardResp);
-    }
+    if (dashboardResp) setDashboard(dashboardResp);
 
     const resourcesResp = await safe(
       () =>
@@ -195,19 +222,13 @@ export function App() {
           `/api/resources?source=${source}&instanceId=${encodeURIComponent(nextId)}&q=${encodeURIComponent(query)}&offset=0&limit=50&refreshMode=incremental&includeDirs=false`
         )
     );
-    if (resourcesResp) {
-      setResources(resourcesResp);
-    }
+    if (resourcesResp) setResources(resourcesResp);
 
     const queueResp = await safe(() => apiGet<{ items: QueueJob[] }>("/api/queue"));
-    if (queueResp) {
-      setQueue(queueResp.items);
-    }
+    if (queueResp) setQueue(queueResp.items);
 
     const settingsResp = await safe(() => apiGet<AppSettings>("/api/app-settings"));
-    if (settingsResp) {
-      setSettings(settingsResp);
-    }
+    if (settingsResp) setSettings(settingsResp);
   }
 
   useEffect(() => {
@@ -240,21 +261,22 @@ export function App() {
             <div className="m-home-avatar" aria-hidden="true">
               ST
             </div>
-          <button
-            type="button"
-            className="m-home-close"
-            onClick={() => {
-              void loadAll();
-              setToast("已刷新");
-            }}
-            aria-label="刷新"
-          >
-            ×
-          </button>
+            <button
+              type="button"
+              className="m-home-close"
+              onClick={() => {
+                void loadAll();
+                setToast("已刷新");
+              }}
+              aria-label="刷新"
+            >
+              刷新
+            </button>
           </div>
 
           <h2 className="m-home-name">{currentInstance?.name ?? "默认实例"}</h2>
           <p className="m-home-sub">{currentInstance?.isRunning ? "运行中的 SillyTavern 实例" : "待机中的 SillyTavern 实例"}</p>
+          <p className="m-home-path">{currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern"}</p>
 
           <button type="button" className="m-home-plate" onClick={() => setTab("resources")}>
             {plateCode}
@@ -284,47 +306,57 @@ export function App() {
 
           <div className="m-home-metric">
             <p className="m-home-metric-label">资源总数</p>
-            <p className="m-home-metric-value">
-              {(dashboard?.selectedInstance?.resourceTotal ?? 0).toLocaleString("en-US")}
+            <p className="m-home-metric-value">{(dashboard?.selectedInstance?.resourceTotal ?? 0).toLocaleString("zh-CN")}</p>
+          </div>
+        </section>
+
+        <section className="m-home-summary">
+          <div className="m-home-summary-head">
+            <h3>资源总览</h3>
+            <button type="button" onClick={() => setTab("resources")}>
+              进入管理
+            </button>
+          </div>
+
+          <div className="m-home-kv">
+            <p>
+              <span>当前版本</span>
+              <strong>{dashboard?.selectedInstance?.version ?? "unknown"}</strong>
+            </p>
+            <p>
+              <span>队列任务</span>
+              <strong>{dashboard?.queueStats.total ?? 0}</strong>
+            </p>
+            <p>
+              <span>失败任务</span>
+              <strong>{dashboard?.queueStats.failed ?? 0}</strong>
+            </p>
+            <p>
+              <span>美化资源</span>
+              <strong>{beautifyCount}</strong>
             </p>
           </div>
         </section>
 
-        <button type="button" className="m-home-float" onClick={() => setTab("resources")} aria-label="跳转资源页">
-          ≡
-        </button>
-
-        <section className="m-home-grid">
-          <article className="m-home-panel">
-            <div className="m-home-panel-head">
-              <span>地点</span>
-              <button type="button" onClick={() => void loadAll()}>
-                查看
-              </button>
-            </div>
-            <p className="m-home-panel-main">{currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern"}</p>
-            <p className="m-home-panel-foot">VERSION {dashboard?.selectedInstance?.version ?? "unknown"}</p>
-          </article>
-
-          <article className="m-home-panel">
-            <div className="m-home-panel-head">
-              <span>载客</span>
-              <button type="button" onClick={() => setTab("queue")}>
-                查看
-              </button>
-            </div>
-            <p className="m-home-panel-main">{queue.length > 0 ? `排队任务 ${queue.length} 条` : "暂无记录"}</p>
-            <p className="m-home-panel-foot">FAILED {dashboard?.queueStats.failed ?? 0}</p>
-          </article>
+        <section className="m-home-stats">
+          <h3>分类数量</h3>
+          <div className="m-home-stat-grid">
+            {homeStats.map((item) => (
+              <article key={item.key} className="m-home-stat-card">
+                <p>{item.label}</p>
+                <strong>{item.value}</strong>
+              </article>
+            ))}
+          </div>
         </section>
 
         <article className="m-home-rec">
           <p className="m-home-rec-label">
             <span className="dot" />
-            REC
+            SYNC
           </p>
-          <p className="m-home-rec-title">行车记录仪</p>
-          <p className="m-home-rec-time">最后同步：{toShortDate(dashboard?.queueStats.updatedAt)}</p>
+          <p className="m-home-rec-title">最近同步</p>
+          <p className="m-home-rec-time">{toShortDate(dashboard?.queueStats.updatedAt)}</p>
         </article>
       </section>
     );
@@ -346,7 +378,7 @@ export function App() {
           </button>
         </div>
         <p className="m-muted">
-          Total: {resources.total} · Instance: {resources.sourceSummary.instance} · Vault: {resources.sourceSummary.vault}
+          总数 {resources.total} · 实例 {resources.sourceSummary.instance} · Vault {resources.sourceSummary.vault}
         </p>
 
         <div className="m-actions-row">
@@ -358,9 +390,7 @@ export function App() {
             className="m-btn"
             onClick={() =>
               void safe(async () => {
-                if (!instanceId || selectedItems.length === 0) {
-                  return;
-                }
+                if (!instanceId || selectedItems.length === 0) return;
                 await apiPost("/api/resources/batch/apply", {
                   instanceId,
                   targetRelDir: "data/default-user/characters",
@@ -383,9 +413,7 @@ export function App() {
             className="m-btn m-btn-ghost"
             onClick={() =>
               void safe(async () => {
-                if (selectedItems.length === 0) {
-                  return;
-                }
+                if (selectedItems.length === 0) return;
                 await downloadZip(
                   "/api/resources/batch/export/zip",
                   {
@@ -407,9 +435,7 @@ export function App() {
             className="m-btn m-btn-danger"
             onClick={() =>
               void safe(async () => {
-                if (selectedItems.length === 0) {
-                  return;
-                }
+                if (selectedItems.length === 0) return;
                 await apiPost("/api/resources/batch/delete", {
                   items: selectedItems.map((item) =>
                     item.source === "vault"
@@ -494,9 +520,7 @@ export function App() {
             className="m-btn"
             onClick={() =>
               void safe(async () => {
-                if (!instanceId) {
-                  return;
-                }
+                if (!instanceId) return;
                 const result = await apiPost(`/api/instances/${instanceId}/git/pull`, {});
                 setGitResult(JSON.stringify(result, null, 2));
                 await loadAll();
@@ -677,9 +701,7 @@ export function App() {
                 onClick={() =>
                   void safe(async () => {
                     const result = await apiPost<{ token: string }>("/api/auth/setup", { password: setupPassword });
-                    if (result.token) {
-                      setAuthToken(result.token);
-                    }
+                    if (result.token) setAuthToken(result.token);
                     setAuthMode("ready");
                     await loadAll();
                   })
@@ -706,9 +728,7 @@ export function App() {
                     const result = await apiPost<{ token: string | null }>("/api/auth/login", {
                       password: loginPassword
                     });
-                    if (result.token) {
-                      setAuthToken(result.token);
-                    }
+                    if (result.token) setAuthToken(result.token);
                     setAuthMode("ready");
                     await loadAll();
                   })
