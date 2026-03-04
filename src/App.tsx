@@ -88,6 +88,7 @@ interface ResourceStatItem {
 
 const PROFILE_NAME_KEY = "st_manager_profile_name";
 const PROFILE_AVATAR_KEY = "st_manager_profile_avatar";
+const FONT_SCALE_KEY = "st_manager_font_scale";
 
 const RESOURCE_TYPE_LABELS: Array<{ key: string; label: string }> = [
   { key: "character", label: "角色卡" },
@@ -133,6 +134,7 @@ export function App() {
   const [profileName, setProfileName] = useState("管理员");
   const [profileAvatar, setProfileAvatar] = useState("");
   const [profileDraftName, setProfileDraftName] = useState("管理员");
+  const [fontScale, setFontScale] = useState(0.5);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
 
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -188,16 +190,33 @@ export function App() {
       .filter((item) => item.value > 0);
     return [...base, ...extra];
   }, [dashboard]);
+  const homeStatsNonZero = useMemo(() => homeStats.filter((item) => item.value > 0), [homeStats]);
+  const homeStatsTop = useMemo(() => {
+    return [...homeStats]
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, "zh-CN"))
+      .slice(0, 6);
+  }, [homeStats]);
+  const appStyle = useMemo(
+    () =>
+      ({
+        "--m-font-scale": String(fontScale)
+      }) as React.CSSProperties,
+    [fontScale]
+  );
 
   useEffect(() => {
     const name = localStorage.getItem(PROFILE_NAME_KEY)?.trim();
     const avatar = localStorage.getItem(PROFILE_AVATAR_KEY) ?? "";
+    const savedScale = Number(localStorage.getItem(FONT_SCALE_KEY));
     if (name) {
       setProfileName(name);
       setProfileDraftName(name);
     }
     if (avatar) {
       setProfileAvatar(avatar);
+    }
+    if (!Number.isNaN(savedScale) && savedScale >= 0.4 && savedScale <= 1.2) {
+      setFontScale(savedScale);
     }
   }, []);
 
@@ -305,6 +324,12 @@ export function App() {
     reader.readAsDataURL(file);
   }
 
+  function updateFontScale(nextScale: number): void {
+    const value = Number.isFinite(nextScale) ? Math.min(1.2, Math.max(0.4, nextScale)) : 0.5;
+    setFontScale(value);
+    localStorage.setItem(FONT_SCALE_KEY, String(value));
+  }
+
   function renderProfileEditor(): React.ReactNode {
     if (!showProfileEditor) return null;
     return (
@@ -332,6 +357,58 @@ export function App() {
               <button type="button" className="m-btn" onClick={() => void saveProfile()}>
                 保存资料
               </button>
+            </div>
+          </div>
+
+          <div className="m-profile-block">
+            <p className="m-muted">字体大小</p>
+            <div className="m-font-scale-row">
+              <input
+                className="m-range"
+                type="range"
+                min={0.4}
+                max={1.2}
+                step={0.05}
+                value={fontScale}
+                onChange={(event) => updateFontScale(Number(event.target.value))}
+              />
+              <strong>{Math.round(fontScale * 100)}%</strong>
+            </div>
+            <div className="m-actions-row">
+              <button type="button" className="m-btn m-btn-ghost" onClick={() => updateFontScale(0.5)}>
+                小号（50%）
+              </button>
+              <button type="button" className="m-btn m-btn-ghost" onClick={() => updateFontScale(0.75)}>
+                中号（75%）
+              </button>
+              <button type="button" className="m-btn m-btn-ghost" onClick={() => updateFontScale(1)}>
+                标准（100%）
+              </button>
+            </div>
+          </div>
+
+          <div className="m-profile-block">
+            <p className="m-muted">酒馆项目</p>
+            <div className="m-profile-project-box">
+              <select
+                className="m-input"
+                value={instanceId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setInstanceId(nextId);
+                  void loadAll({ instanceId: nextId });
+                }}
+              >
+                {instances.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+              <p className="m-muted m-break">
+                当前路径：
+                {currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern"}
+              </p>
             </div>
           </div>
 
@@ -425,27 +502,8 @@ export function App() {
           </div>
 
           <p className="m-home-owner">{profileName}</p>
-          <h2 className="m-home-name">{currentInstance?.name ?? "默认实例"}</h2>
-          <p className="m-home-sub">{currentInstance?.isRunning ? "运行中的 SillyTavern 实例" : "待机中的 SillyTavern 实例"}</p>
-          <p className="m-home-path">{currentInstance?.rootPath ?? "/data/data/com.termux/files/home/SillyTavern"}</p>
-        </section>
-
-        <section className="m-home-instance-wrap">
-          <select
-            className="m-home-instance-select"
-            value={instanceId}
-            onChange={(event) => {
-              const nextId = event.target.value;
-              setInstanceId(nextId);
-              void loadAll({ instanceId: nextId });
-            }}
-          >
-            {instances.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
+          <h2 className="m-home-name">{currentInstance?.name ?? "默认项目"}</h2>
+          <p className="m-home-sub">{currentInstance?.isRunning ? "当前酒馆项目（运行中）" : "当前酒馆项目（未运行）"}</p>
         </section>
 
         <section className="m-home-metrics">
@@ -465,77 +523,69 @@ export function App() {
           </div>
         </section>
 
-        <section className="m-home-summary">
-          <div className="m-home-summary-head">
-            <h3>资源总览</h3>
-            <button type="button" onClick={() => setActivePanel("resources")}>
-              进入管理
-            </button>
-          </div>
-
-          <div className="m-home-kv">
-            <p>
-              <span>当前版本</span>
-              <strong>{dashboard?.selectedInstance?.version ?? "unknown"}</strong>
+        <section className="m-home-cockpit">
+          <button type="button" className="m-home-cockpit-card" onClick={() => setActivePanel("resources")}>
+            <div className="m-home-cockpit-head">
+              <p className="m-home-cockpit-eyebrow">资源管理</p>
+              <span>进入</span>
+            </div>
+            <h3>资源中心</h3>
+            <p className="m-home-cockpit-main">
+              {homeStatsNonZero.length > 0 ? `${homeStatsNonZero.length} 个分类有内容` : "当前暂无资源"}
             </p>
-            <p>
-              <span>队列任务</span>
-              <strong>{dashboard?.queueStats.total ?? 0}</strong>
+            <p className="m-home-cockpit-sub">
+              角色卡 {(dashboard?.resourceStats?.character ?? 0).toLocaleString("zh-CN")} · 世界书{" "}
+              {(dashboard?.resourceStats?.world ?? 0).toLocaleString("zh-CN")}
             </p>
-            <p>
-              <span>失败任务</span>
-              <strong>{dashboard?.queueStats.failed ?? 0}</strong>
-            </p>
-            <p>
-              <span>主题美化</span>
-              <strong>{beautifyCount}</strong>
-            </p>
-          </div>
-        </section>
-
-        <section className="m-home-stats">
-          <div className="m-home-stats-head">
-            <h3>分类数量</h3>
-            <button type="button" onClick={() => setActivePanel("resources")}>
-              查看全部
-            </button>
-          </div>
-          <div className="m-home-stat-grid">
-            {homeStats.map((item) => (
-              <article key={item.key} className="m-home-stat-card">
-                <p>{item.label}</p>
-                <strong>{item.value}</strong>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="m-home-modules">
-          <button type="button" className="m-home-module-card" onClick={() => setActivePanel("resources")}>
-            <h4>资源管理</h4>
-            <p>管理角色卡、世界书、预设、聊天记录及插件导入导出。</p>
+            <p className="m-home-cockpit-sub">预设 {(dashboard?.resourceStats?.preset ?? 0).toLocaleString("zh-CN")} · 聊天记录 {(dashboard?.resourceStats?.chat ?? 0).toLocaleString("zh-CN")}</p>
+            <p className="m-home-cockpit-sub">主题美化 {beautifyCount.toLocaleString("zh-CN")} · 全局扩展 {(dashboard?.resourceStats?.prompt ?? 0).toLocaleString("zh-CN")}</p>
           </button>
-          <button type="button" className="m-home-module-card" onClick={() => setActivePanel("queue")}>
-            <h4>写入队列</h4>
-            <p>查看运行中排队任务，定位阻塞与失败原因。</p>
-          </button>
-          <button type="button" className="m-home-module-card" onClick={() => setActivePanel("git")}>
-            <h4>Git 同步</h4>
-            <p>在实例与 Vault 之间执行拉取更新。</p>
-          </button>
-          <button type="button" className="m-home-module-card" onClick={() => setActivePanel("settings")}>
-            <h4>系统设置</h4>
-            <p>控制自动更新、自动打开浏览器和旧版入口。</p>
+
+          <button type="button" className="m-home-cockpit-card" onClick={() => setActivePanel("queue")}>
+            <div className="m-home-cockpit-head">
+              <p className="m-home-cockpit-eyebrow">分类数量</p>
+              <span>查看</span>
+            </div>
+            <h3>资源分类</h3>
+            {homeStatsTop.length > 0 ? (
+              <ul className="m-home-cockpit-list">
+                {homeStatsTop.map((item) => (
+                  <li key={item.key}>
+                    <span>{item.label}</span>
+                    <strong>{item.value.toLocaleString("zh-CN")}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="m-home-cockpit-empty">暂无记录</p>
+            )}
           </button>
         </section>
 
         <article className="m-home-rec">
           <p className="m-home-rec-label">
             <span className="dot" />
-            SYNC
+            REC
           </p>
-          <p className="m-home-rec-title">最近同步</p>
-          <p className="m-home-rec-time">{toShortDate(dashboard?.queueStats.updatedAt)}</p>
+          <p className="m-home-rec-title">系统记录</p>
+          <div className="m-home-rec-grid">
+            <button type="button" onClick={() => setActivePanel("git")}>
+              <span>最近同步</span>
+              <strong>{toShortDate(dashboard?.queueStats.updatedAt)}</strong>
+            </button>
+            <button type="button" onClick={() => setActivePanel("settings")}>
+              <span>项目版本</span>
+              <strong>{dashboard?.selectedInstance?.version ?? "unknown"}</strong>
+            </button>
+            <button type="button" onClick={() => setActivePanel("git")}>
+              <span>队列任务</span>
+              <strong>{dashboard?.queueStats.total ?? 0}</strong>
+            </button>
+            <button type="button" onClick={() => setActivePanel("queue")}>
+              <span>失败任务</span>
+              <strong>{dashboard?.queueStats.failed ?? 0}</strong>
+            </button>
+          </div>
         </article>
       </section>
     );
@@ -548,7 +598,7 @@ export function App() {
         <div className="m-actions-row">
           <select className="m-input" value={source} onChange={(event) => setSource(event.target.value as Source)}>
             <option value="all">全部</option>
-            <option value="instance">实例</option>
+            <option value="instance">酒馆项目</option>
             <option value="vault">Vault</option>
           </select>
           <input className="m-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="关键词" />
@@ -557,7 +607,7 @@ export function App() {
           </button>
         </div>
         <p className="m-muted">
-          总数 {resources.total} · 实例 {resources.sourceSummary.instance} · Vault {resources.sourceSummary.vault}
+          总数 {resources.total} · 酒馆项目 {resources.sourceSummary.instance} · Vault {resources.sourceSummary.vault}
         </p>
 
         <div className="m-actions-row">
@@ -706,7 +756,7 @@ export function App() {
               })
             }
           >
-            拉取实例
+            拉取项目
           </button>
           <button
             type="button"
@@ -821,7 +871,7 @@ export function App() {
   if (legacyMode) {
     return (
       <>
-        <div className="m-app">
+        <div className="m-app" style={appStyle}>
           <section className="m-card">
             <h2>旧版模式</h2>
             <button type="button" className="m-btn" onClick={() => setLegacyMode(false)}>
@@ -831,7 +881,7 @@ export function App() {
         </div>
         <Suspense
           fallback={
-            <div className="m-app">
+            <div className="m-app" style={appStyle}>
               <section className="m-card">正在加载旧版界面...</section>
             </div>
           }
@@ -844,7 +894,7 @@ export function App() {
 
   if (authMode !== "ready") {
     return (
-      <div className="m-auth-wrap">
+      <div className="m-auth-wrap" style={appStyle}>
         <section className="m-auth-card">
           <h2>ST 资源管理器</h2>
           {authMode === "checking" ? <p className="m-muted">初始化中...</p> : null}
@@ -907,7 +957,7 @@ export function App() {
   }
 
   return (
-    <div className="m-app">
+    <div className="m-app" style={appStyle}>
       {renderHome()}
       {renderPanel()}
       {renderProfileEditor()}

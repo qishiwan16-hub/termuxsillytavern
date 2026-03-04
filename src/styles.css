@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@500;700&display=swap");
 
 :root {
+  --m-font-scale: 0.5;
   --bg: #f3efe6;
   --bg-panel: #fffaf0;
   --paper: #fffdf8;
@@ -1220,6 +1221,27 @@ body {
   gap: 8px;
 }
 
+.m-profile-project-box {
+  display: grid;
+  gap: 8px;
+}
+
+.m-font-scale-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-font-scale-row strong {
+  min-width: 44px;
+  text-align: right;
+}
+
+.m-range {
+  width: 100%;
+}
+
 .m-panel-page {
   position: fixed;
   inset: 0;
@@ -1254,9 +1276,118 @@ body {
   bottom: calc(20px + env(safe-area-inset-bottom));
 }
 
+.m-home-cockpit {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.m-home-cockpit-card {
+  border: 1px solid #e1e1e1;
+  border-radius: 12px;
+  background: #f8f8f8;
+  padding: 12px;
+  text-align: left;
+  min-height: 236px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  color: #1a1a1a;
+}
+
+.m-home-cockpit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-home-cockpit-eyebrow {
+  margin: 0;
+  color: #747474;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+}
+
+.m-home-cockpit-head span {
+  color: #888;
+  font-size: 12px;
+}
+
+.m-home-cockpit-card h3 {
+  margin: 0;
+  font-size: 22px;
+  font-family: "Noto Serif SC", serif;
+  font-weight: 600;
+}
+
+.m-home-cockpit-main {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.15;
+  font-family: "Noto Serif SC", serif;
+}
+
+.m-home-cockpit-sub {
+  margin: 0;
+  color: #616161;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.m-home-cockpit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.m-home-cockpit-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  border-bottom: 1px solid #ececec;
+  padding-bottom: 5px;
+}
+
+.m-home-cockpit-list span {
+  color: #6c6c6c;
+  font-size: 13px;
+}
+
+.m-home-cockpit-list strong {
+  color: #191919;
+  font-size: 20px;
+  line-height: 1;
+  font-family: "Noto Serif SC", serif;
+}
+
+.m-home-cockpit-empty {
+  margin: 12px 0 0;
+  color: #9a9a9a;
+  font-size: 14px;
+}
+
 @media (max-width: 520px) {
-  .m-home-modules {
-    grid-template-columns: 1fr;
+  .m-home-cockpit {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .m-home-cockpit-card {
+    min-height: 210px;
+    padding: 10px;
+  }
+
+  .m-home-cockpit-card h3 {
+    font-size: 20px;
+  }
+
+  .m-home-cockpit-main {
+    font-size: 17px;
   }
 
   .m-profile-trigger {
@@ -1264,6 +1395,104 @@ body {
     height: 58px;
     font-size: 21px;
   }
+}
+
+.m-home-rec {
+  margin-top: 14px;
+  border: 1px solid #e2e2e2;
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.m-home-rec-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.m-home-rec-grid button {
+  border: 1px solid #e6e6e6;
+  background: #fafafa;
+  border-radius: 10px;
+  text-align: left;
+  padding: 8px 9px;
+  display: grid;
+  gap: 4px;
+}
+
+.m-home-rec-grid span {
+  color: #888;
+  font-size: 12px;
+}
+
+.m-home-rec-grid strong {
+  color: #1c1c1c;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* Runtime font scaling */
+.m-app,
+.m-auth-wrap {
+  font-size: calc(14px * var(--m-font-scale));
+}
+
+.m-app :is(button, input, select, textarea, p, span, label, li, a, strong),
+.m-auth-wrap :is(button, input, select, textarea, p, span, label, li, a, strong) {
+  font-size: calc(14px * var(--m-font-scale));
+}
+
+.m-app .m-home-owner {
+  font-size: calc(12px * var(--m-font-scale));
+}
+
+.m-app .m-home-name {
+  font-size: clamp(calc(28px * var(--m-font-scale)), calc(8.4vw * var(--m-font-scale)), calc(40px * var(--m-font-scale)));
+}
+
+.m-app .m-home-sub {
+  font-size: clamp(calc(14px * var(--m-font-scale)), calc(4.5vw * var(--m-font-scale)), calc(18px * var(--m-font-scale)));
+}
+
+.m-app .m-home-path {
+  font-size: calc(12px * var(--m-font-scale));
+}
+
+.m-app .m-home-metric-label {
+  font-size: calc(12px * var(--m-font-scale));
+}
+
+.m-app .m-home-metric-value {
+  font-size: clamp(calc(32px * var(--m-font-scale)), calc(9.2vw * var(--m-font-scale)), calc(44px * var(--m-font-scale)));
+}
+
+.m-app .m-card h2,
+.m-app .m-panel-top h2,
+.m-app .m-profile-header h3,
+.m-auth-wrap .m-auth-card h2 {
+  font-size: calc(24px * var(--m-font-scale));
+}
+
+.m-app .m-resource-card h3 {
+  font-size: calc(26px * var(--m-font-scale));
+}
+
+.m-app .m-home-cockpit-card h3 {
+  font-size: calc(22px * var(--m-font-scale));
+}
+
+.m-app .m-home-cockpit-main {
+  font-size: calc(20px * var(--m-font-scale));
+}
+
+.m-app .m-home-cockpit-list strong {
+  font-size: calc(20px * var(--m-font-scale));
+}
+
+.m-app .m-home-rec-title {
+  font-size: calc(24px * var(--m-font-scale));
 }
 
 @keyframes m-fade-in {
