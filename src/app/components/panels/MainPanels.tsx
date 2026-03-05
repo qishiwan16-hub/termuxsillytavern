@@ -182,8 +182,7 @@ export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
                     </div>
                   )}
                   <div className="m-character-info">
-                    <p className="m-character-info-head">角色卡 / CHARACTER</p>
-                    <div className="m-character-info-grid">
+                    <div className="m-character-fields">
                       <p className="m-character-field-label">姓名 / NAME</p>
                       <p className="m-character-field-value m-break">{displayName}</p>
                       <p className="m-character-field-label">性别 / SEX</p>
