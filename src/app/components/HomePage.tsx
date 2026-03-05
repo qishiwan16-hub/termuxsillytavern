@@ -33,31 +33,33 @@ export function HomePage(props: HomePageProps): React.ReactNode {
   return (
     <section className="m-home-page">
       <section className="m-home-hero">
-        <div className="m-home-hero-shell">
-          <div className="m-home-hero-meta">
-            <p className="m-home-hero-net">酒馆资源</p>
-            <p className="m-home-hero-power">{props.projectRunning ? "在线" : "离线"}</p>
+        <div className="m-home-hero-shell hero-card">
+          <div className="m-home-hero-main hero-main">
+            <div className="m-home-hero-copy">
+              <p className="m-home-hero-kicker">{props.projectRunning ? "在线" : "离线"}</p>
+              <h2 className="m-home-user-name m-break">{props.profileName || "未命名用户"}</h2>
+              <p className="m-home-user-meta m-break">IP：{props.projectName || "未设置项目"}</p>
+            </div>
+
+            <button
+              type="button"
+              className="m-profile-trigger m-home-hero-avatar hero-avatar"
+              onClick={props.onOpenProfile}
+              aria-label="打开个人资料"
+            >
+              {props.profileAvatar ? <img src={props.profileAvatar} alt="头像" /> : <span>{props.profileInitials}</span>}
+            </button>
           </div>
 
-          <div className="m-home-hero-top">
-            <div className="m-home-user">
-              <button type="button" className="m-profile-trigger" onClick={props.onOpenProfile} aria-label="打开个人资料">
-                {props.profileAvatar ? <img src={props.profileAvatar} alt="头像" /> : <span>{props.profileInitials}</span>}
-              </button>
-              <div className="m-home-user-card">
-                <h2 className="m-home-user-name m-break">{props.profileName || "未命名用户"}</h2>
-                <p className="m-home-user-meta m-break">IP：{props.projectName || "未设置项目"}</p>
-                <p className="m-home-user-stats">队列任务 {props.queueTotal} · 失败 {props.queueFailed}</p>
-              </div>
-            </div>
-            <div className="m-home-hero-actions">
-              <button type="button" className="m-home-action-btn m-home-action-btn-light" onClick={props.onRefresh}>
-                Share
-              </button>
-              <button type="button" className="m-home-action-btn m-home-action-btn-dark" onClick={props.onOpenProfile}>
-                Use Template
-              </button>
-            </div>
+          <div className="m-home-hero-meta hero-meta">
+            <span className="m-home-hero-pill">队列任务 {props.queueTotal}</span>
+            <span className="m-home-hero-pill">失败 {props.queueFailed}</span>
+            <button type="button" className="m-home-hero-pill m-home-hero-pill-action" onClick={props.onRefresh}>
+              Share
+            </button>
+            <button type="button" className="m-home-hero-pill m-home-hero-pill-action" onClick={props.onOpenProfile}>
+              Use Template
+            </button>
           </div>
         </div>
       </section>

@@ -739,48 +739,49 @@ body {
 
 .m-home-hero {
   min-height: auto;
-  gap: 4px;
+  gap: 8px;
 }
 
-.m-home-hero-shell {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  padding: 2px 0 0;
-  box-shadow: none;
+.m-home-hero-shell,
+.hero-card {
+  border: 1px solid #e2e2e2;
+  border-radius: 28px;
+  background: linear-gradient(160deg, #fcfcfc 0%, #f3f3f3 100%);
+  padding: 18px 16px 14px;
+  box-shadow: 0 8px 18px rgba(15, 15, 15, 0.04);
+  display: grid;
+  gap: 14px;
 }
 
-.m-home-hero-meta {
-  display: none;
-}
-
-.m-home-hero-top {
-  margin-bottom: 0;
+.m-home-hero-main,
+.hero-main {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
 }
 
-.m-home-user {
+.m-home-hero-copy {
   min-width: 0;
   flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  gap: 6px;
 }
 
-.m-home-user-card {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
+.m-home-hero-kicker {
+  margin: 0;
+  color: #848484;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 .m-home-user-name {
   margin: 0;
   color: #171717;
-  font-size: clamp(24px, 5.8vw, 32px);
-  line-height: 1.08;
+  font-size: clamp(34px, 9.5vw, 48px);
+  line-height: 0.98;
   font-family: "Noto Serif SC", serif;
   font-weight: 600;
 }
@@ -789,41 +790,41 @@ body {
   margin: 0;
   color: #666;
   font-size: 14px;
-  line-height: 1.25;
+  line-height: 1.32;
 }
 
-.m-home-user-stats {
-  margin: 0;
-  color: #8a8a8a;
-  font-size: 13px;
-  line-height: 1.2;
-}
-
-.m-home-hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.m-home-hero-avatar,
+.hero-avatar {
+  width: 82px;
+  height: 82px;
+  border-radius: 999px;
+  border: 1px solid #dbdbdb;
+  background: #ededed;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
   flex: none;
 }
 
-.m-home-action-btn {
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-size: 14px;
-  line-height: 1;
-  min-height: 40px;
+.m-home-hero-meta,
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.m-home-action-btn-light {
-  border: 1px solid #d9d9d9;
+.m-home-hero-pill {
+  border: 1px solid #e0e0e0;
   background: #f8f8f8;
-  color: #4a4a4a;
+  color: #595959;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.m-home-action-btn-dark {
-  border: none;
-  background: #202020;
-  color: #fff;
+.m-home-hero-pill-action {
+  background: #ffffff;
+  color: #3f3f3f;
 }
 
 .m-home-path {
@@ -1758,29 +1759,49 @@ body {
     font-size: 17px;
   }
 
-  .m-home-user {
-    gap: 8px;
+  .m-home-hero-shell,
+  .hero-card {
+    padding: 14px 12px 12px;
+    border-radius: 22px;
+    gap: 10px;
   }
 
-  .m-home-hero-top {
+  .m-home-hero-main,
+  .hero-main {
     align-items: flex-start;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .m-home-hero-actions {
-    flex-direction: column;
-    align-items: stretch;
-    width: 122px;
+  .m-home-user-name {
+    font-size: clamp(28px, 8vw, 34px);
   }
 
-  .m-home-action-btn {
-    min-height: 36px;
-    padding: 8px 10px;
+  .m-home-user-meta {
+    font-size: 13px;
+  }
+
+  .m-home-hero-kicker {
     font-size: 12px;
+    letter-spacing: 0.12em;
   }
 
-  .m-home-hero-shell {
-    padding: 9px 10px;
+  .m-home-hero-avatar,
+  .hero-avatar {
+    width: 66px;
+    height: 66px;
+  }
+
+  .m-home-hero-meta,
+  .hero-meta {
+    gap: 6px;
+  }
+
+  .m-home-hero-pill {
+    padding: 6px 10px;
+    font-size: 11px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .m-home-name {
