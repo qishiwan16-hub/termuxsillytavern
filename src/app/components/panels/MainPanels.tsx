@@ -153,7 +153,7 @@ export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
       </div>
 
       <div className="m-character-layout">
-        <article className="m-character-pane">
+        <article className="m-character-pane m-character-list-pane">
           <p className="m-muted">角色列表</p>
           <ul className="m-list-clean m-character-list">
             {props.cards.length > 0 ? (
@@ -164,8 +164,13 @@ export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
                     className={`m-character-item-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
                     onClick={() => props.onSelectCard(item.relPath)}
                   >
-                    <span className="m-break">{item.name}</span>
-                    <strong>{item.ext.toUpperCase()}</strong>
+                    <span className="m-character-item-brand">m-character</span>
+                    <span className="m-character-item-icon" aria-hidden="true">
+                      ◫
+                    </span>
+                    <h3 className="m-character-item-title m-break">{item.name}</h3>
+                    <p className="m-character-item-sub">TYPE · {item.ext.toUpperCase()}</p>
+                    <span className="m-character-item-cta">VIEW INSIDE →</span>
                   </button>
                 </li>
               ))
@@ -175,17 +180,13 @@ export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
           </ul>
         </article>
 
-        <article className="m-character-pane">
+        <article className="m-character-pane m-character-detail-pane">
           <p className="m-muted">详情区</p>
           {selected ? (
             <div className="m-character-detail-grid">
               <div className="m-character-detail-card">
                 <p className="m-muted">文件名</p>
                 <p className="m-break">{selected.name}</p>
-              </div>
-              <div className="m-character-detail-card">
-                <p className="m-muted">相对路径</p>
-                <p className="m-break">{selected.relPath}</p>
               </div>
               <div className="m-character-detail-card">
                 <p className="m-muted">文件类型</p>
