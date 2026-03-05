@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type {
   AppSettings,
   CharacterCardItem,
@@ -152,6 +152,29 @@ function toCardDisplayName(filename: string): string {
 }
 
 export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
+  const [detailRelPath, setDetailRelPath] = useState("");
+
+  const detailItem = useMemo(
+    () => props.cards.find((item) => item.relPath === detailRelPath) ?? null,
+    [props.cards, detailRelPath]
+  );
+
+  useEffect(() => {
+    if (!detailRelPath) return;
+    if (!props.cards.some((item) => item.relPath === detailRelPath)) {
+      setDetailRelPath("");
+    }
+  }, [props.cards, detailRelPath]);
+
+  const handleEnterDetail = (relPath: string): void => {
+    setDetailRelPath(relPath);
+    props.onEnterCard(relPath);
+  };
+
+  const handleBackToList = (): void => {
+    setDetailRelPath("");
+  };
+
   return (
     <section className="m-card">
       <h2>角色卡管理</h2>
@@ -163,43 +186,94 @@ export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
         <span className="m-muted">可识别文件：{props.cards.length}</span>
       </div>
 
-      <ul className="m-list-clean m-character-list m-character-list-full">
-        {props.cards.length > 0 ? (
-          props.cards.map((item) => {
-            const displayName = toCardDisplayName(item.name);
-            return (
-              <li key={item.relPath}>
-                <button
-                  type="button"
-                  className={`m-character-item-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
-                  onClick={() => props.onEnterCard(item.relPath)}
-                >
-                  {item.imageUrl ? (
-                    <img className="m-character-cover" src={item.imageUrl} alt={`${displayName} 角色卡`} loading="lazy" />
-                  ) : (
-                    <div className="m-character-cover m-character-cover-placeholder" aria-hidden="true">
-                      <span>NO IMAGE</span>
+      {detailItem ? (
+        <section className="m-character-detail" aria-label="角色详情">
+          <header className="m-character-detail-top">
+            <button type="button" className="m-btn m-btn-ghost" onClick={handleBackToList}>
+              返回列表
+            </button>
+            <div className="m-character-detail-title-wrap">
+              <h3 className="m-character-detail-title m-break">{toCardDisplayName(detailItem.name)}</h3>
+              <p className="m-character-detail-subtitle">角色详情占位文本 · 结构预览阶段</p>
+            </div>
+            <div className="m-character-detail-avatar" aria-hidden="true">
+              {detailItem.imageUrl ? <img src={detailItem.imageUrl} alt="角色头像" loading="lazy" /> : <span>NO IMAGE</span>}
+            </div>
+          </header>
+
+          <div className="m-character-detail-banner" role="img" aria-label="角色横幅图">
+            {detailItem.imageUrl ? <img src={detailItem.imageUrl} alt="角色横幅" loading="lazy" /> : <span>角色横幅占位</span>}
+          </div>
+
+          <div className="m-character-detail-grid" aria-label="角色详情骨架卡片区">
+            <article className="m-character-detail-card">
+              <p className="m-character-detail-card-label">基础信息</p>
+              <p className="m-character-detail-card-value">占位内容</p>
+            </article>
+            <article className="m-character-detail-card">
+              <p className="m-character-detail-card-label">设定摘要</p>
+              <p className="m-character-detail-card-value">占位内容</p>
+            </article>
+
+            <article className="m-character-detail-control-card">
+              <div>
+                <p className="m-character-detail-card-label">控制卡</p>
+                <p className="m-character-detail-card-value">横向控制区域占位</p>
+              </div>
+              <button type="button" className="m-btn" disabled>
+                占位按钮
+              </button>
+            </article>
+
+            <article className="m-character-detail-card">
+              <p className="m-character-detail-card-label">补充字段</p>
+              <p className="m-character-detail-card-value">占位内容</p>
+            </article>
+            <article className="m-character-detail-card">
+              <p className="m-character-detail-card-label">扩展字段</p>
+              <p className="m-character-detail-card-value">占位内容</p>
+            </article>
+          </div>
+        </section>
+      ) : (
+        <ul className="m-list-clean m-character-list m-character-list-full">
+          {props.cards.length > 0 ? (
+            props.cards.map((item) => {
+              const displayName = toCardDisplayName(item.name);
+              return (
+                <li key={item.relPath}>
+                  <button
+                    type="button"
+                    className={`m-character-item-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
+                    onClick={() => handleEnterDetail(item.relPath)}
+                  >
+                    {item.imageUrl ? (
+                      <img className="m-character-cover" src={item.imageUrl} alt={`${displayName} 角色卡`} loading="lazy" />
+                    ) : (
+                      <div className="m-character-cover m-character-cover-placeholder" aria-hidden="true">
+                        <span>NO IMAGE</span>
+                      </div>
+                    )}
+                    <div className="m-character-info">
+                      <div className="m-character-fields">
+                        <p className="m-character-field-label">姓名 / NAME</p>
+                        <p className="m-character-field-value m-break">{displayName}</p>
+                        <p className="m-character-field-label">类型 / TYPE</p>
+                        <p className="m-character-field-value">{item.cardType}</p>
+                        <p className="m-character-field-label">文件大小 / SIZE</p>
+                        <p className="m-character-field-value">{toReadableSize(item.size)}</p>
+                      </div>
+                      <span className="m-character-item-cta">点击进入</span>
                     </div>
-                  )}
-                  <div className="m-character-info">
-                    <div className="m-character-fields">
-                      <p className="m-character-field-label">姓名 / NAME</p>
-                      <p className="m-character-field-value m-break">{displayName}</p>
-                      <p className="m-character-field-label">性别 / SEX</p>
-                      <p className="m-character-field-value">{item.cardType}</p>
-                      <p className="m-character-field-label">籍贯 / NATIVE</p>
-                      <p className="m-character-field-value">{toReadableSize(item.size)}</p>
-                    </div>
-                    <span className="m-character-item-cta">点击进入</span>
-                  </div>
-                </button>
-              </li>
-            );
-          })
-        ) : (
-          <li className="m-muted">{props.loading ? "正在读取角色卡目录..." : "当前目录暂无可识别角色卡文件"}</li>
-        )}
-      </ul>
+                  </button>
+                </li>
+              );
+            })
+          ) : (
+            <li className="m-muted">{props.loading ? "正在读取角色卡目录..." : "当前目录暂无可识别角色卡文件"}</li>
+          )}
+        </ul>
+      )}
     </section>
   );
 }
