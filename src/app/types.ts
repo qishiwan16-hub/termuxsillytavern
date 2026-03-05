@@ -1,6 +1,6 @@
 export type AuthMode = "checking" | "setup" | "login" | "ready";
 export type Source = "all" | "instance" | "vault";
-export type PanelKey = "resources" | "preset" | "queue" | "git" | "settings" | "cloud";
+export type PanelKey = "resources" | "character" | "preset" | "queue" | "git" | "settings" | "cloud";
 
 export interface AuthStatus {
   enabled: boolean;
@@ -103,6 +103,13 @@ export interface PresetFileItem {
   name: string;
   relPath: string;
   size?: number;
+}
+
+export interface CharacterCardItem {
+  name: string;
+  relPath: string;
+  size?: number;
+  ext: "png" | "webp" | "json";
 }
 
 export interface PresetBasicSettings {

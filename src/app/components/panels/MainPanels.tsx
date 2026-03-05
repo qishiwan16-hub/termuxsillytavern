@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type {
   AppSettings,
+  CharacterCardItem,
   PanelKey,
   PresetBasicSettings,
   PresetFileItem,
@@ -21,8 +22,10 @@ export function PanelShell(props: PanelShellProps): React.ReactNode {
   const title =
     props.activePanel === "resources"
       ? "资源管理"
-      : props.activePanel === "preset"
-        ? "预设管理"
+      : props.activePanel === "character"
+        ? "角色卡"
+        : props.activePanel === "preset"
+          ? "预设管理"
         : props.activePanel === "queue"
           ? "写入队列"
           : props.activePanel === "git"
@@ -122,6 +125,89 @@ export function ResourcesPanel(props: ResourcesPanelProps): React.ReactNode {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+interface CharacterPanelProps {
+  baseRelDir: string;
+  loading: boolean;
+  cards: CharacterCardItem[];
+  selectedRelPath: string;
+  onRefresh: () => void;
+  onSelectCard: (relPath: string) => void;
+}
+
+export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
+  const selected = props.cards.find((item) => item.relPath === props.selectedRelPath) ?? null;
+
+  return (
+    <section className="m-card">
+      <h2>角色卡管理</h2>
+      <p className="m-muted m-break">目录：{props.baseRelDir ? `data/<user>/${props.baseRelDir}` : "未检测到 data/<user>/characters"}</p>
+      <div className="m-actions-row">
+        <button type="button" className="m-btn m-btn-ghost" onClick={props.onRefresh}>
+          刷新角色卡
+        </button>
+        <span className="m-muted">可识别文件：{props.cards.length}</span>
+      </div>
+
+      <div className="m-character-layout">
+        <article className="m-character-pane">
+          <p className="m-muted">角色列表</p>
+          <ul className="m-list-clean m-character-list">
+            {props.cards.length > 0 ? (
+              props.cards.map((item) => (
+                <li key={item.relPath}>
+                  <button
+                    type="button"
+                    className={`m-character-item-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
+                    onClick={() => props.onSelectCard(item.relPath)}
+                  >
+                    <span className="m-break">{item.name}</span>
+                    <strong>{item.ext.toUpperCase()}</strong>
+                  </button>
+                </li>
+              ))
+            ) : (
+              <li className="m-muted">当前目录暂无可识别角色卡文件</li>
+            )}
+          </ul>
+        </article>
+
+        <article className="m-character-pane">
+          <p className="m-muted">详情区</p>
+          {selected ? (
+            <div className="m-character-detail-grid">
+              <div className="m-character-detail-card">
+                <p className="m-muted">文件名</p>
+                <p className="m-break">{selected.name}</p>
+              </div>
+              <div className="m-character-detail-card">
+                <p className="m-muted">相对路径</p>
+                <p className="m-break">{selected.relPath}</p>
+              </div>
+              <div className="m-character-detail-card">
+                <p className="m-muted">文件类型</p>
+                <p>{selected.ext.toUpperCase()}</p>
+              </div>
+              <div className="m-character-detail-card">
+                <p className="m-muted">文件大小</p>
+                <p>{typeof selected.size === "number" ? `${Math.max(1, Math.round(selected.size / 1024))} KB` : "-"}</p>
+              </div>
+              <div className="m-character-editor-placeholder">
+                <p className="m-muted">编辑区（预留）</p>
+                <p>后续将接入角色信息编辑、头像预览与保存操作。</p>
+              </div>
+            </div>
+          ) : (
+            <div className="m-character-editor-placeholder">
+              <p className="m-muted">详情区</p>
+              <p>{props.loading ? "正在读取角色卡目录..." : "请先从左侧选择角色卡"}</p>
+            </div>
+          )}
+        </article>
+      </div>
     </section>
   );
 }

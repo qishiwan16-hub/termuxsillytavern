@@ -24,11 +24,12 @@ import {
 import { AuthGate } from "./components/AuthGate";
 import { HomePage } from "./components/HomePage";
 import { ProfileEditorModal } from "./components/ProfileEditorModal";
-import { CloudPanel, GitPanel, PanelShell, PresetPanel, QueuePanel, ResourcesPanel, SettingsPanel } from "./components/panels/MainPanels";
+import { CharacterPanel, CloudPanel, GitPanel, PanelShell, PresetPanel, QueuePanel, ResourcesPanel, SettingsPanel } from "./components/panels/MainPanels";
 import type {
   AppSettings,
   AuthMode,
   AuthStatus,
+  CharacterCardItem,
   Dashboard,
   DirectoryBrowseResp,
   DirectoryEntry,
@@ -122,17 +123,25 @@ function extractPresetSettings(content: string): { settings: PresetBasicSettings
   }
 }
 
-function inferPresetBaseRelDir(rootPath: string | undefined): string {
+function hasStrictUserDataRoot(rootPath: string | undefined): boolean {
   const normalized = (rootPath ?? "").replace(/\\/g, "/").replace(/\/+$/, "");
-  if (!normalized) return "";
+  if (!normalized) return false;
+  // 仅接受 .../SillyTavern/data/<user>
+  return /\/data\/[^/]+$/i.test(normalized);
+}
 
-  // rootPath 为 .../SillyTavern/data/<user>
-  if (/\/data\/[^/]+$/i.test(normalized)) {
-    return "OpenAI Settings";
+function inferPresetBaseRelDir(rootPath: string | undefined): string {
+  if (!hasStrictUserDataRoot(rootPath)) {
+    return "";
   }
+  return "OpenAI Settings";
+}
 
-  // rootPath 为 .../SillyTavern 或 .../SillyTavern/data 时无法在前端可靠推导 <user>，禁止回退固定用户目录
-  return "";
+function inferCharacterBaseRelDir(rootPath: string | undefined): string {
+  if (!hasStrictUserDataRoot(rootPath)) {
+    return "";
+  }
+  return "characters";
 }
 
 function upsertNumericSetting(target: Record<string, unknown>, aliases: string[], nextValue: string): void {
@@ -210,6 +219,28 @@ function collectPresetFiles(nodes: Array<{ name: string; relPath: string; isDir:
   return result.sort((a, b) => a.relPath.localeCompare(b.relPath, "zh-CN"));
 }
 
+function collectCharacterCardFiles(nodes: Array<{ name: string; relPath: string; isDir: boolean; size?: number }>): CharacterCardItem[] {
+  const allowExt = new Set(["png", "webp", "json"]);
+  const cards = nodes
+    .filter((item) => !item.isDir)
+    .map((item) => {
+      const ext = item.name.toLowerCase().split(".").pop() ?? "";
+      return {
+        item,
+        ext
+      };
+    })
+    .filter(({ ext }) => allowExt.has(ext))
+    .map(({ item, ext }) => ({
+      name: item.name,
+      relPath: item.relPath,
+      size: item.size,
+      ext: ext as "png" | "webp" | "json"
+    }));
+
+  return cards.sort((a, b) => a.relPath.localeCompare(b.relPath, "zh-CN"));
+}
+
 export function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("checking");
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ enabled: false, passwordConfigured: false });
@@ -265,6 +296,12 @@ export function App() {
   const [presetSettings, setPresetSettings] = useState<PresetBasicSettings>({ ...DEFAULT_PRESET_SETTINGS });
   const [presetJsonCount, setPresetJsonCount] = useState(0);
 
+  const [characterLoading, setCharacterLoading] = useState(false);
+  const [characterBaseRelDir, setCharacterBaseRelDir] = useState("");
+  const [characterCards, setCharacterCards] = useState<CharacterCardItem[]>([]);
+  const [characterSelectedRelPath, setCharacterSelectedRelPath] = useState("");
+  const [characterCardCount, setCharacterCardCount] = useState(0);
+
   const currentInstance = useMemo(() => instances.find((item) => item.id === instanceId), [instances, instanceId]);
   const selectedItems = useMemo(
     () => resources.items.filter((item) => selectedIds.includes(item.id)),
@@ -305,13 +342,13 @@ export function App() {
     const stats = dashboard?.tavernResourceStats;
     return [
       { label: "预设", value: presetJsonCount, panel: "preset" as const },
-      { label: "角色卡", value: stats?.character ?? 0, panel: "resources" as const },
+      { label: "角色卡", value: characterCardCount, panel: "character" as const },
       { label: "聊天文件", value: stats?.chat ?? 0, panel: "resources" as const },
       { label: "世界书", value: stats?.world ?? 0, panel: "resources" as const },
       { label: "美化", value: stats?.beautify ?? 0, panel: "resources" as const },
       { label: "背景图", value: stats?.background ?? 0, panel: "resources" as const }
     ];
-  }, [dashboard, presetJsonCount]);
+  }, [dashboard, presetJsonCount, characterCardCount]);
   const appStyle = useMemo(
     () =>
       ({
@@ -842,6 +879,76 @@ export function App() {
     }
   }
 
+  async function refreshCharacterCount(target?: { instanceId?: string; rootPath?: string }): Promise<void> {
+    const targetInstanceId = target?.instanceId ?? instanceId;
+    const targetRootPath = target?.rootPath ?? currentInstance?.rootPath;
+    if (!targetInstanceId) {
+      setCharacterCardCount(0);
+      return;
+    }
+
+    const baseRelDir = inferCharacterBaseRelDir(targetRootPath);
+    if (!baseRelDir) {
+      setCharacterCardCount(0);
+      return;
+    }
+
+    try {
+      const tree = await apiGet<InstanceTreeResp>(
+        `/api/instances/${targetInstanceId}/tree?path=${encodeURIComponent(baseRelDir)}`
+      );
+      setCharacterCardCount(collectCharacterCardFiles(tree.nodes).length);
+    } catch {
+      setCharacterCardCount(0);
+    }
+  }
+
+  async function refreshCharacterPanel(preferredRelPath?: string): Promise<void> {
+    if (!instanceId) {
+      setCharacterBaseRelDir("");
+      setCharacterCards([]);
+      setCharacterSelectedRelPath("");
+      setCharacterCardCount(0);
+      return;
+    }
+
+    const baseRelDir = inferCharacterBaseRelDir(currentInstance?.rootPath);
+    setCharacterBaseRelDir(baseRelDir);
+    if (!baseRelDir) {
+      setCharacterCards([]);
+      setCharacterSelectedRelPath("");
+      setCharacterCardCount(0);
+      return;
+    }
+
+    setCharacterLoading(true);
+    try {
+      const tree = await apiGet<InstanceTreeResp>(
+        `/api/instances/${instanceId}/tree?path=${encodeURIComponent(baseRelDir)}`
+      );
+      const files = collectCharacterCardFiles(tree.nodes);
+      setCharacterCards(files);
+      setCharacterCardCount(files.length);
+      if (files.length === 0) {
+        setCharacterSelectedRelPath("");
+        return;
+      }
+
+      const targetRelPath =
+        (preferredRelPath && files.some((it) => it.relPath === preferredRelPath) && preferredRelPath) ||
+        (characterSelectedRelPath && files.some((it) => it.relPath === characterSelectedRelPath) && characterSelectedRelPath) ||
+        files[0].relPath;
+      setCharacterSelectedRelPath(targetRelPath);
+    } catch (error) {
+      setCharacterCards([]);
+      setCharacterSelectedRelPath("");
+      setCharacterCardCount(0);
+      setToast(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCharacterLoading(false);
+    }
+  }
+
   async function refreshPresetPanel(preferredRelPath?: string): Promise<void> {
     if (!instanceId) {
       setPresetBaseRelDir("");
@@ -972,6 +1079,9 @@ export function App() {
     if (activePanel === "preset") {
       void refreshPresetPanel(presetSelectedRelPath);
     }
+    if (activePanel === "character") {
+      void refreshCharacterPanel(characterSelectedRelPath);
+    }
     setToast("已刷新");
   }
 
@@ -982,11 +1092,19 @@ export function App() {
   }, [activePanel, instanceId, currentInstance?.rootPath]);
 
   useEffect(() => {
+    if (activePanel !== "character") return;
+    void refreshCharacterPanel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePanel, instanceId, currentInstance?.rootPath]);
+
+  useEffect(() => {
     if (authMode !== "ready") {
       setPresetJsonCount(0);
+      setCharacterCardCount(0);
       return;
     }
     void refreshPresetCount();
+    void refreshCharacterCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authMode, instanceId, currentInstance?.rootPath]);
 
@@ -1016,6 +1134,15 @@ export function App() {
         onBatchDelete={() => void batchDelete()}
         onToggleSelect={toggleSelectedId}
         onToggleFavorite={(id) => void toggleFavorite(id)}
+      />
+    ) : activePanel === "character" ? (
+      <CharacterPanel
+        baseRelDir={characterBaseRelDir}
+        loading={characterLoading}
+        cards={characterCards}
+        selectedRelPath={characterSelectedRelPath}
+        onRefresh={() => void refreshCharacterPanel(characterSelectedRelPath)}
+        onSelectCard={setCharacterSelectedRelPath}
       />
     ) : activePanel === "preset" ? (
       <PresetPanel
