@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import type { AppSettings, PanelKey, QueueJob, ResourceResp, Source } from "../../types";
+import type {
+  AppSettings,
+  PanelKey,
+  PresetBasicSettings,
+  PresetFileItem,
+  QueueJob,
+  ResourceResp,
+  Source
+} from "../../types";
 
 interface PanelShellProps {
   activePanel: PanelKey | null;
@@ -13,13 +21,15 @@ export function PanelShell(props: PanelShellProps): React.ReactNode {
   const title =
     props.activePanel === "resources"
       ? "资源管理"
-      : props.activePanel === "queue"
-        ? "写入队列"
-        : props.activePanel === "git"
-          ? "Git 同步"
-          : props.activePanel === "cloud"
-            ? "云端存储"
-            : "系统设置";
+      : props.activePanel === "preset"
+        ? "预设管理"
+        : props.activePanel === "queue"
+          ? "写入队列"
+          : props.activePanel === "git"
+            ? "Git 同步"
+            : props.activePanel === "cloud"
+              ? "云端存储"
+              : "系统设置";
 
   return (
     <section className="m-panel-page">
@@ -112,6 +122,149 @@ export function ResourcesPanel(props: ResourcesPanelProps): React.ReactNode {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+interface PresetPanelProps {
+  loading: boolean;
+  baseRelDir: string;
+  files: PresetFileItem[];
+  selectedRelPath: string;
+  readOnly: boolean;
+  truncated: boolean;
+  rawContent: string;
+  rawError: string;
+  settings: PresetBasicSettings;
+  onRefresh: () => void;
+  onSelectFile: (relPath: string) => void;
+  onRawChange: (value: string) => void;
+  onPatchSettings: (patch: Partial<PresetBasicSettings>) => void;
+  onSave: () => void;
+}
+
+export function PresetPanel(props: PresetPanelProps): React.ReactNode {
+  const selectedFileName = props.selectedRelPath.split("/").pop() ?? "";
+  const canEditRaw = Boolean(props.selectedRelPath) && !props.readOnly;
+
+  return (
+    <section className="m-card">
+      <h2>OpenAI 预设</h2>
+      <p className="m-muted m-break">目录：{props.baseRelDir || "未找到 OpenAI Settings 目录"}</p>
+      <div className="m-actions-row">
+        <button type="button" className="m-btn m-btn-ghost" onClick={props.onRefresh}>
+          刷新预设
+        </button>
+        <button
+          type="button"
+          className="m-btn"
+          onClick={props.onSave}
+          disabled={!props.selectedRelPath || Boolean(props.rawError) || props.readOnly}
+        >
+          保存预设
+        </button>
+      </div>
+
+      <div className="m-preset-layout">
+        <article className="m-preset-pane">
+          <p className="m-muted">预设条目</p>
+          <ul className="m-list-clean m-preset-file-list">
+            {props.files.length > 0 ? (
+              props.files.map((item) => (
+                <li key={item.relPath}>
+                  <button
+                    type="button"
+                    className={`m-preset-file-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
+                    onClick={() => props.onSelectFile(item.relPath)}
+                  >
+                    <span className="m-break">{item.name}</span>
+                    <strong>{typeof item.size === "number" ? `${Math.max(1, Math.round(item.size / 1024))} KB` : "-"}</strong>
+                  </button>
+                </li>
+              ))
+            ) : (
+              <li className="m-muted">当前目录没有预设文件</li>
+            )}
+          </ul>
+        </article>
+
+        <article className="m-preset-pane">
+          <p className="m-muted">基本设置{selectedFileName ? ` · ${selectedFileName}` : ""}</p>
+          <div className="m-preset-setting-grid">
+            <label>
+              Temperature
+              <input
+                className="m-input"
+                value={props.settings.temperature}
+                onChange={(event) => props.onPatchSettings({ temperature: event.target.value })}
+              />
+            </label>
+            <label>
+              Top P
+              <input
+                className="m-input"
+                value={props.settings.topP}
+                onChange={(event) => props.onPatchSettings({ topP: event.target.value })}
+              />
+            </label>
+            <label>
+              Frequency Penalty
+              <input
+                className="m-input"
+                value={props.settings.frequencyPenalty}
+                onChange={(event) => props.onPatchSettings({ frequencyPenalty: event.target.value })}
+              />
+            </label>
+            <label>
+              Presence Penalty
+              <input
+                className="m-input"
+                value={props.settings.presencePenalty}
+                onChange={(event) => props.onPatchSettings({ presencePenalty: event.target.value })}
+              />
+            </label>
+            <label>
+              Max Context
+              <input
+                className="m-input"
+                value={props.settings.maxContext}
+                onChange={(event) => props.onPatchSettings({ maxContext: event.target.value })}
+              />
+            </label>
+            <label>
+              Max Response Tokens
+              <input
+                className="m-input"
+                value={props.settings.maxResponseTokens}
+                onChange={(event) => props.onPatchSettings({ maxResponseTokens: event.target.value })}
+              />
+            </label>
+          </div>
+
+          <label className="m-check">
+            <input
+              type="checkbox"
+              checked={props.settings.streaming}
+              onChange={(event) => props.onPatchSettings({ streaming: event.target.checked })}
+            />
+            启用流式输出
+          </label>
+
+          {props.loading ? <p className="m-muted">正在加载预设内容...</p> : null}
+          {props.readOnly ? <p className="m-error">文件过大，当前只读，无法保存。</p> : null}
+          {props.truncated ? <p className="m-muted">文件内容已截断显示，仅用于快速检查。</p> : null}
+          {props.rawError ? <p className="m-error">{props.rawError}</p> : null}
+
+          <textarea
+            className="m-input m-preset-editor"
+            value={props.rawContent}
+            onChange={(event) => props.onRawChange(event.target.value)}
+            placeholder="在这里编辑预设 JSON"
+            spellCheck={false}
+            disabled={!canEditRaw}
+          />
+        </article>
+      </div>
     </section>
   );
 }

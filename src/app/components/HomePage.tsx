@@ -4,6 +4,7 @@ import type { PanelKey, ResourceStatItem } from "../types";
 interface HomeCenterRow {
   label: string;
   value: number;
+  panel?: PanelKey;
 }
 
 interface HomePageProps {
@@ -101,25 +102,27 @@ export function HomePage(props: HomePageProps): React.ReactNode {
       </article>
 
       <section className="m-home-cockpit">
-        <button type="button" className="m-home-cockpit-card" onClick={() => props.onOpenPanel("resources")}>
+        <article className="m-home-cockpit-card">
           <div className="m-home-cockpit-head">
             <p className="m-home-cockpit-eyebrow">资源管理</p>
-            <span>进入</span>
+            <span>分类入口</span>
           </div>
           <h3>酒馆资源</h3>
           {props.hasResource ? (
-            <ul className="m-home-cockpit-list">
+            <ul className="m-home-cockpit-list m-home-cockpit-list-action">
               {props.homeCenterRows.map((item) => (
                 <li key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.value.toLocaleString("zh-CN")}</strong>
+                  <button type="button" className="m-home-category-btn" onClick={() => props.onOpenPanel(item.panel ?? "resources")}>
+                    <span>{item.label}</span>
+                    <strong>{item.value.toLocaleString("zh-CN")}</strong>
+                  </button>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="m-home-cockpit-empty">当前暂无资源</p>
           )}
-        </button>
+        </article>
 
         <button type="button" className="m-home-cockpit-card" onClick={() => props.onOpenPanel("resources")}>
           <div className="m-home-cockpit-head">

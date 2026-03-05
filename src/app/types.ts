@@ -1,6 +1,6 @@
 export type AuthMode = "checking" | "setup" | "login" | "ready";
 export type Source = "all" | "instance" | "vault";
-export type PanelKey = "resources" | "queue" | "git" | "settings" | "cloud";
+export type PanelKey = "resources" | "preset" | "queue" | "git" | "settings" | "cloud";
 
 export interface AuthStatus {
   enabled: boolean;
@@ -72,6 +72,47 @@ export interface Dashboard {
     pending?: number;
     updatedAt: string;
   };
+}
+
+export interface InstanceFileNode {
+  name: string;
+  relPath: string;
+  isDir: boolean;
+  size?: number;
+  children?: InstanceFileNode[];
+}
+
+export interface InstanceTreeResp {
+  instanceId: string;
+  rootPath: string;
+  nodes: InstanceFileNode[];
+}
+
+export interface InstanceFileResp {
+  source: "instance";
+  instanceId: string;
+  relPath: string;
+  size: number;
+  readOnly: boolean;
+  truncated: boolean;
+  content: string;
+  encoding: "utf8";
+}
+
+export interface PresetFileItem {
+  name: string;
+  relPath: string;
+  size?: number;
+}
+
+export interface PresetBasicSettings {
+  temperature: string;
+  topP: string;
+  frequencyPenalty: string;
+  presencePenalty: string;
+  maxContext: string;
+  maxResponseTokens: string;
+  streaming: boolean;
 }
 
 export interface ResourceStatItem {

@@ -1288,6 +1288,32 @@ body {
   font-family: "Noto Serif SC", serif;
 }
 
+.m-home-cockpit-list-action li {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.m-home-category-btn {
+  width: 100%;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  background: #fbfbfb;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  text-align: left;
+}
+
+.m-home-category-btn span {
+  color: #666;
+}
+
+.m-home-category-btn strong {
+  color: #1c1c1c;
+}
+
 .m-home-cockpit-empty {
   margin: 12px 0 0;
   color: #9a9a9a;
@@ -1365,6 +1391,65 @@ body {
   opacity: 0;
 }
 
+.m-preset-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 10px;
+}
+
+.m-preset-pane {
+  border: 1px solid #e1e1e1;
+  border-radius: 12px;
+  background: #fafafa;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.m-preset-file-list {
+  max-height: 58vh;
+  overflow: auto;
+}
+
+.m-preset-file-btn {
+  width: 100%;
+  border: 1px solid #e2e2e2;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  text-align: left;
+}
+
+.m-preset-file-btn.active {
+  border-color: #8c8c8c;
+  background: #f1f1f1;
+}
+
+.m-preset-setting-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.m-preset-setting-grid label {
+  display: grid;
+  gap: 4px;
+  color: #5c5c5c;
+  font-size: 12px;
+}
+
+.m-preset-editor {
+  min-height: 340px;
+  font-family: "JetBrains Mono", "Consolas", monospace;
+  line-height: 1.45;
+  resize: vertical;
+}
+
 @media (max-width: 520px) {
   .m-home-cockpit {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1413,6 +1498,18 @@ body {
   }
 
   .m-cloud-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .m-preset-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .m-preset-file-list {
+    max-height: 220px;
+  }
+
+  .m-preset-setting-grid {
     grid-template-columns: 1fr;
   }
 }

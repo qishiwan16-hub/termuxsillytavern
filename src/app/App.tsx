@@ -4,6 +4,7 @@ import {
   apiGet,
   apiPatch,
   apiPost,
+  apiPut,
   clearAuthToken,
   downloadZip,
   getAuthToken,
@@ -23,7 +24,7 @@ import {
 import { AuthGate } from "./components/AuthGate";
 import { HomePage } from "./components/HomePage";
 import { ProfileEditorModal } from "./components/ProfileEditorModal";
-import { CloudPanel, GitPanel, PanelShell, QueuePanel, ResourcesPanel, SettingsPanel } from "./components/panels/MainPanels";
+import { CloudPanel, GitPanel, PanelShell, PresetPanel, QueuePanel, ResourcesPanel, SettingsPanel } from "./components/panels/MainPanels";
 import type {
   AppSettings,
   AuthMode,
@@ -32,7 +33,11 @@ import type {
   DirectoryBrowseResp,
   DirectoryEntry,
   Instance,
+  InstanceFileResp,
+  InstanceTreeResp,
   PanelKey,
+  PresetBasicSettings,
+  PresetFileItem,
   QueueJob,
   ResourceResp,
   ResourceStatItem,
@@ -40,6 +45,178 @@ import type {
 } from "./types";
 
 const LegacyApp = lazy(() => import("../LegacyApp").then((mod) => ({ default: mod.LegacyApp })));
+
+const DEFAULT_PRESET_SETTINGS: PresetBasicSettings = {
+  temperature: "",
+  topP: "",
+  frequencyPenalty: "",
+  presencePenalty: "",
+  maxContext: "",
+  maxResponseTokens: "",
+  streaming: false
+};
+
+function pickPresetTarget(obj: Record<string, unknown>): Record<string, unknown> {
+  const nestedKeys = ["completion", "openai_setting", "openaiSettings", "settings"];
+  for (const key of nestedKeys) {
+    const value = obj[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+  }
+  return obj;
+}
+
+function findValue(target: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    if (key in target) return target[key];
+  }
+  return undefined;
+}
+
+function valueToText(input: unknown): string {
+  if (typeof input === "number" && Number.isFinite(input)) return String(input);
+  if (typeof input === "string") return input;
+  return "";
+}
+
+function valueToBool(input: unknown): boolean {
+  if (typeof input === "boolean") return input;
+  if (typeof input === "string") {
+    const lower = input.trim().toLowerCase();
+    return lower === "true" || lower === "1" || lower === "yes";
+  }
+  if (typeof input === "number") {
+    return input !== 0;
+  }
+  return false;
+}
+
+function extractPresetSettings(content: string): { settings: PresetBasicSettings; error: string } {
+  if (!content.trim()) {
+    return { settings: { ...DEFAULT_PRESET_SETTINGS }, error: "" };
+  }
+  try {
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { settings: { ...DEFAULT_PRESET_SETTINGS }, error: "预设文件不是 JSON 对象" };
+    }
+    const target = pickPresetTarget(parsed as Record<string, unknown>);
+    return {
+      settings: {
+        temperature: valueToText(findValue(target, ["temperature", "temp"])),
+        topP: valueToText(findValue(target, ["top_p", "topP"])),
+        frequencyPenalty: valueToText(findValue(target, ["frequency_penalty", "frequencyPenalty"])),
+        presencePenalty: valueToText(findValue(target, ["presence_penalty", "presencePenalty"])),
+        maxContext: valueToText(findValue(target, ["max_context", "maxContext", "max_prompt_tokens"])),
+        maxResponseTokens: valueToText(findValue(target, ["max_response_tokens", "max_tokens", "maxResponseTokens"])),
+        streaming: valueToBool(findValue(target, ["stream", "streaming"]))
+      },
+      error: ""
+    };
+  } catch (error) {
+    return {
+      settings: { ...DEFAULT_PRESET_SETTINGS },
+      error: error instanceof Error ? `JSON 解析失败：${error.message}` : "JSON 解析失败"
+    };
+  }
+}
+
+function inferPresetBaseRelDir(rootPath: string | undefined): string {
+  const normalized = (rootPath ?? "").replace(/\\/g, "/").replace(/\/+$/, "");
+  if (/\/data\/[^/]+$/i.test(normalized)) {
+    return "OpenAI Settings";
+  }
+  if (/\/data$/i.test(normalized)) {
+    return "default-user/OpenAI Settings";
+  }
+  return "data/default-user/OpenAI Settings";
+}
+
+function upsertNumericSetting(target: Record<string, unknown>, aliases: string[], nextValue: string): void {
+  const existing = aliases.find((key) => key in target);
+  const key = existing ?? aliases[0];
+  const trimmed = nextValue.trim();
+  if (!trimmed) {
+    for (const alias of aliases) {
+      delete target[alias];
+    }
+    return;
+  }
+  const asNumber = Number(trimmed);
+  target[key] = Number.isFinite(asNumber) ? asNumber : trimmed;
+}
+
+function upsertBooleanSetting(target: Record<string, unknown>, aliases: string[], value: boolean): void {
+  const existing = aliases.find((key) => key in target);
+  const key = existing ?? aliases[0];
+  target[key] = value;
+}
+
+function applySettingsToContent(content: string, patch: Partial<PresetBasicSettings>): {
+  content: string;
+  settings: PresetBasicSettings;
+  error: string;
+} {
+  const parsed = extractPresetSettings(content);
+  const merged: PresetBasicSettings = {
+    ...parsed.settings,
+    ...patch
+  };
+  if (parsed.error) {
+    return {
+      content,
+      settings: merged,
+      error: parsed.error
+    };
+  }
+  try {
+    const json = JSON.parse(content) as Record<string, unknown>;
+    const target = pickPresetTarget(json);
+    upsertNumericSetting(target, ["temperature", "temp"], merged.temperature);
+    upsertNumericSetting(target, ["top_p", "topP"], merged.topP);
+    upsertNumericSetting(target, ["frequency_penalty", "frequencyPenalty"], merged.frequencyPenalty);
+    upsertNumericSetting(target, ["presence_penalty", "presencePenalty"], merged.presencePenalty);
+    upsertNumericSetting(target, ["max_context", "maxContext", "max_prompt_tokens"], merged.maxContext);
+    upsertNumericSetting(target, ["max_response_tokens", "max_tokens", "maxResponseTokens"], merged.maxResponseTokens);
+    upsertBooleanSetting(target, ["stream", "streaming"], merged.streaming);
+
+    return {
+      content: JSON.stringify(json, null, 2),
+      settings: merged,
+      error: ""
+    };
+  } catch (error) {
+    return {
+      content,
+      settings: merged,
+      error: error instanceof Error ? `JSON 解析失败：${error.message}` : "JSON 解析失败"
+    };
+  }
+}
+
+function collectPresetFiles(nodes: Array<{ name: string; relPath: string; isDir: boolean; size?: number; children?: unknown }>): PresetFileItem[] {
+  const result: PresetFileItem[] = [];
+
+  function walk(list: Array<{ name: string; relPath: string; isDir: boolean; size?: number; children?: unknown }>): void {
+    for (const item of list) {
+      if (item.isDir) {
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          walk(item.children as Array<{ name: string; relPath: string; isDir: boolean; size?: number; children?: unknown }>);
+        }
+        continue;
+      }
+      result.push({
+        name: item.name,
+        relPath: item.relPath,
+        size: item.size
+      });
+    }
+  }
+
+  walk(nodes);
+  return result.sort((a, b) => a.relPath.localeCompare(b.relPath, "zh-CN"));
+}
 
 export function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("checking");
@@ -86,6 +263,16 @@ export function App() {
   const [legacyMode, setLegacyMode] = useState(false);
   const [toast, setToast] = useState("");
 
+  const [presetLoading, setPresetLoading] = useState(false);
+  const [presetBaseRelDir, setPresetBaseRelDir] = useState("");
+  const [presetFiles, setPresetFiles] = useState<PresetFileItem[]>([]);
+  const [presetSelectedRelPath, setPresetSelectedRelPath] = useState("");
+  const [presetReadOnly, setPresetReadOnly] = useState(false);
+  const [presetTruncated, setPresetTruncated] = useState(false);
+  const [presetRawContent, setPresetRawContent] = useState("");
+  const [presetRawError, setPresetRawError] = useState("");
+  const [presetSettings, setPresetSettings] = useState<PresetBasicSettings>({ ...DEFAULT_PRESET_SETTINGS });
+
   const currentInstance = useMemo(() => instances.find((item) => item.id === instanceId), [instances, instanceId]);
   const selectedItems = useMemo(
     () => resources.items.filter((item) => selectedIds.includes(item.id)),
@@ -125,12 +312,12 @@ export function App() {
   const homeCenterRows = useMemo(() => {
     const stats = dashboard?.tavernResourceStats;
     return [
-      { label: "预设", value: stats?.preset ?? 0 },
-      { label: "角色卡", value: stats?.character ?? 0 },
-      { label: "聊天文件", value: stats?.chat ?? 0 },
-      { label: "世界书", value: stats?.world ?? 0 },
-      { label: "美化", value: stats?.beautify ?? 0 },
-      { label: "背景图", value: stats?.background ?? 0 }
+      { label: "预设", value: stats?.preset ?? 0, panel: "preset" as const },
+      { label: "角色卡", value: stats?.character ?? 0, panel: "resources" as const },
+      { label: "聊天文件", value: stats?.chat ?? 0, panel: "resources" as const },
+      { label: "世界书", value: stats?.world ?? 0, panel: "resources" as const },
+      { label: "美化", value: stats?.beautify ?? 0, panel: "resources" as const },
+      { label: "背景图", value: stats?.background ?? 0, panel: "resources" as const }
     ];
   }, [dashboard]);
   const appStyle = useMemo(
@@ -618,6 +805,122 @@ export function App() {
     });
   }
 
+  async function loadPresetFile(relPath: string, baseRelDir: string): Promise<void> {
+    if (!instanceId || !relPath || !baseRelDir) return;
+    setPresetLoading(true);
+    try {
+      const fullPath = `${baseRelDir}/${relPath}`.replace(/\\/g, "/").replace(/^\/+/, "");
+      const file = await apiGet<InstanceFileResp>(
+        `/api/instances/${instanceId}/file?path=${encodeURIComponent(fullPath)}`
+      );
+      setPresetSelectedRelPath(relPath);
+      setPresetReadOnly(Boolean(file.readOnly));
+      setPresetTruncated(Boolean(file.truncated));
+      setPresetRawContent(file.content);
+      const parsed = extractPresetSettings(file.content);
+      setPresetSettings(parsed.settings);
+      setPresetRawError(parsed.error);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPresetLoading(false);
+    }
+  }
+
+  async function refreshPresetPanel(preferredRelPath?: string): Promise<void> {
+    if (!instanceId) {
+      setPresetBaseRelDir("");
+      setPresetFiles([]);
+      setPresetSelectedRelPath("");
+      setPresetRawContent("");
+      setPresetRawError("");
+      setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
+      return;
+    }
+    const baseRelDir = inferPresetBaseRelDir(currentInstance?.rootPath);
+    setPresetBaseRelDir(baseRelDir);
+
+    setPresetLoading(true);
+    try {
+      const tree = await apiGet<InstanceTreeResp>(
+        `/api/instances/${instanceId}/tree?path=${encodeURIComponent(baseRelDir)}`
+      );
+      const files = collectPresetFiles(tree.nodes);
+
+      setPresetFiles(files);
+      if (files.length === 0) {
+        setPresetSelectedRelPath("");
+        setPresetRawContent("");
+        setPresetRawError("");
+        setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
+        setPresetReadOnly(false);
+        setPresetTruncated(false);
+        return;
+      }
+
+      const targetRelPath =
+        (preferredRelPath && files.some((it) => it.relPath === preferredRelPath) && preferredRelPath) ||
+        (presetSelectedRelPath && files.some((it) => it.relPath === presetSelectedRelPath) && presetSelectedRelPath) ||
+        files[0].relPath;
+
+      await loadPresetFile(targetRelPath, baseRelDir);
+    } catch (error) {
+      setPresetFiles([]);
+      setPresetSelectedRelPath("");
+      setPresetRawContent("");
+      setPresetRawError("");
+      setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
+      setToast(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPresetLoading(false);
+    }
+  }
+
+  function handlePresetRawChange(next: string): void {
+    setPresetRawContent(next);
+    const parsed = extractPresetSettings(next);
+    setPresetSettings(parsed.settings);
+    setPresetRawError(parsed.error);
+  }
+
+  function handlePresetPatch(patch: Partial<PresetBasicSettings>): void {
+    const result = applySettingsToContent(presetRawContent, patch);
+    setPresetRawContent(result.content);
+    setPresetSettings(result.settings);
+    setPresetRawError(result.error);
+  }
+
+  async function savePreset(): Promise<void> {
+    await safe(async () => {
+      if (!instanceId) {
+        setToast("请先选择酒馆项目");
+        return;
+      }
+      if (!presetBaseRelDir || !presetSelectedRelPath) {
+        setToast("请先选择预设文件");
+        return;
+      }
+      if (presetReadOnly) {
+        setToast("文件为只读，无法保存");
+        return;
+      }
+      if (presetRawError) {
+        setToast("JSON 格式有误，无法保存");
+        return;
+      }
+
+      const relPath = `${presetBaseRelDir}/${presetSelectedRelPath}`.replace(/\\/g, "/").replace(/^\/+/, "");
+      await apiPut(`/api/instances/${instanceId}/file`, {
+        relPath,
+        content: presetRawContent,
+        queueIfRunning: true,
+        createBackup: true
+      });
+      setToast("预设已保存");
+      await refreshPresetPanel(presetSelectedRelPath);
+    });
+  }
+
   async function patchSettings(patch: Partial<AppSettings>): Promise<void> {
     await safe(async () => {
       const result = await apiPatch<AppSettings>("/api/app-settings", patch);
@@ -645,8 +948,17 @@ export function App() {
 
   function refreshAll(): void {
     void loadAll();
+    if (activePanel === "preset") {
+      void refreshPresetPanel(presetSelectedRelPath);
+    }
     setToast("已刷新");
   }
+
+  useEffect(() => {
+    if (activePanel !== "preset") return;
+    void refreshPresetPanel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePanel, instanceId, currentInstance?.rootPath]);
 
   const normalizedProjectPathDraft = normalizeProjectPath(projectPathDraft);
   const projectPathFavoriteValue = projectPathFavorites.includes(normalizedProjectPathDraft)
@@ -674,6 +986,25 @@ export function App() {
         onBatchDelete={() => void batchDelete()}
         onToggleSelect={toggleSelectedId}
         onToggleFavorite={(id) => void toggleFavorite(id)}
+      />
+    ) : activePanel === "preset" ? (
+      <PresetPanel
+        loading={presetLoading}
+        baseRelDir={presetBaseRelDir}
+        files={presetFiles}
+        selectedRelPath={presetSelectedRelPath}
+        readOnly={presetReadOnly}
+        truncated={presetTruncated}
+        rawContent={presetRawContent}
+        rawError={presetRawError}
+        settings={presetSettings}
+        onRefresh={() => void refreshPresetPanel(presetSelectedRelPath)}
+        onSelectFile={(relPath) => {
+          void loadPresetFile(relPath, presetBaseRelDir);
+        }}
+        onRawChange={handlePresetRawChange}
+        onPatchSettings={handlePresetPatch}
+        onSave={() => void savePreset()}
       />
     ) : activePanel === "queue" ? (
       <QueuePanel queue={queue} />
