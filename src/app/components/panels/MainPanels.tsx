@@ -176,10 +176,10 @@ export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
   };
 
   return (
-    <section className="m-card">
+    <section className="m-card m-character-panel">
       <h2>角色卡管理</h2>
       <p className="m-muted m-break">目录：{props.baseRelDir ? `data/<user>/${props.baseRelDir}` : "未检测到 data/<user>/characters"}</p>
-      <div className="m-actions-row">
+      <div className="m-actions-row m-character-toolbar">
         <button type="button" className="m-btn m-btn-ghost" onClick={props.onRefresh}>
           刷新角色卡
         </button>
@@ -295,10 +295,10 @@ export function PresetPanel(props: PresetPanelProps): React.ReactNode {
   const selectedFileName = props.selectedRelPath.split("/").pop() ?? "";
 
   return (
-    <section className="m-card">
+    <section className="m-card m-preset-panel">
       <h2>OpenAI 预设</h2>
       <p className="m-muted m-break">目录：{props.baseRelDir || "未找到 OpenAI Settings 目录"}</p>
-      <div className="m-actions-row">
+      <div className="m-actions-row m-preset-toolbar">
         <button type="button" className="m-btn m-btn-ghost" onClick={props.onRefresh}>
           刷新预设
         </button>

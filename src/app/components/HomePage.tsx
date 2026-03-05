@@ -28,6 +28,8 @@ interface HomePageProps {
 }
 
 export function HomePage(props: HomePageProps): React.ReactNode {
+  const resourceTotal = props.homeCenterRows.reduce((sum, item) => sum + item.value, 0);
+
   return (
     <section className="m-home-page">
       <section className="m-home-hero">
@@ -43,19 +45,19 @@ export function HomePage(props: HomePageProps): React.ReactNode {
                 {props.profileAvatar ? <img src={props.profileAvatar} alt="头像" /> : <span>{props.profileInitials}</span>}
               </button>
               <div className="m-home-user-card">
-                <p className="m-home-owner">{props.profileName}</p>
-                <h2 className="m-home-name">{props.projectName}</h2>
-                <p className="m-home-sub">
-                  {props.projectRunning ? "当前酒馆项目（运行中）" : "当前酒馆项目（未运行）"}
-                </p>
-                <div className="m-home-badge-row">
-                  <span className="m-home-badge">SillyTavern 项目卡</span>
-                </div>
+                <h2 className="m-home-user-name m-break">{props.profileName || "未命名用户"}</h2>
+                <p className="m-home-user-meta m-break">IP：{props.projectName || "未设置项目"}</p>
+                <p className="m-home-user-stats">队列任务 {props.queueTotal} · 失败 {props.queueFailed}</p>
               </div>
             </div>
-            <button type="button" className="m-home-close" onClick={props.onRefresh} aria-label="刷新">
-              刷新
-            </button>
+            <div className="m-home-hero-actions">
+              <button type="button" className="m-home-action-btn m-home-action-btn-light" onClick={props.onRefresh}>
+                Share
+              </button>
+              <button type="button" className="m-home-action-btn m-home-action-btn-dark" onClick={props.onOpenProfile}>
+                Use Template
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -70,8 +72,8 @@ export function HomePage(props: HomePageProps): React.ReactNode {
         </div>
 
         <div className="m-home-metric">
-          <p className="m-home-metric-label">当前酒馆版本</p>
-          <p className="m-home-metric-value">{props.version ?? "unknown"}</p>
+          <p className="m-home-metric-label">资源总数</p>
+          <p className="m-home-metric-value">{resourceTotal.toLocaleString("zh-CN")}</p>
         </div>
       </section>
 
