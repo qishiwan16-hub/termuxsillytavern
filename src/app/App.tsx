@@ -123,14 +123,14 @@ export function App() {
     [homeStats]
   );
   const homeCenterRows = useMemo(() => {
-    const stats = dashboard?.resourceStats ?? {};
+    const stats = dashboard?.tavernResourceStats;
     return [
-      { label: "角色卡", value: stats.character ?? 0 },
-      { label: "世界书", value: stats.world ?? 0 },
-      { label: "预设", value: stats.preset ?? 0 },
-      { label: "聊天记录", value: stats.chat ?? 0 },
-      { label: "全局扩展", value: stats.prompt ?? 0 },
-      { label: "主题美化", value: stats.theme ?? 0 }
+      { label: "预设", value: stats?.preset ?? 0 },
+      { label: "角色卡", value: stats?.character ?? 0 },
+      { label: "聊天文件", value: stats?.chat ?? 0 },
+      { label: "世界书", value: stats?.world ?? 0 },
+      { label: "美化", value: stats?.beautify ?? 0 },
+      { label: "背景图", value: stats?.background ?? 0 }
     ];
   }, [dashboard]);
   const appStyle = useMemo(
@@ -765,7 +765,7 @@ export function App() {
         updatedAt={dashboard?.queueStats.updatedAt}
         homeCenterRows={homeCenterRows}
         homeStatsTop={homeStatsTop}
-        hasResource={homeStatsNonZero.length > 0}
+        hasResource={homeCenterRows.some((item) => item.value > 0)}
         onOpenProfile={() => setShowProfileEditor(true)}
         onRefresh={refreshAll}
         onOpenPanel={setActivePanel}

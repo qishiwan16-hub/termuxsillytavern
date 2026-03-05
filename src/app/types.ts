@@ -56,6 +56,14 @@ export interface Dashboard {
     isRunning: boolean;
   };
   resourceStats?: Record<string, number>;
+  tavernResourceStats?: {
+    preset: number;
+    character: number;
+    chat: number;
+    world: number;
+    beautify: number;
+    background: number;
+  };
   queueStats: {
     total: number;
     blocked: number;

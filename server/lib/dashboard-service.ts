@@ -5,7 +5,8 @@ import type {
   DashboardSummary,
   Instance,
   QueueJob,
-  ResourceType
+  ResourceType,
+  TavernResourceStats
 } from "../types.js";
 import { ScanCacheService } from "./scan-cache-service.js";
 
@@ -23,6 +24,116 @@ function emptyResourceStats(): Record<ResourceType, number> {
     asset: 0,
     other: 0
   };
+}
+
+const TAVERN_RESOURCE_RULES: Array<{ key: keyof TavernResourceStats; patterns: RegExp[] }> = [
+  {
+    key: "preset",
+    patterns: [
+      /(^|\/)presets?(\/|$)/i,
+      /(^|\/)instruct(\/|$)/i,
+      /(^|\/)sysprompt(s)?(\/|$)/i
+    ]
+  },
+  {
+    key: "character",
+    patterns: [
+      /(^|\/)characters?(\/|$)/i,
+      /(^|\/)char(s)?(\/|$)/i,
+      /(^|\/)cards?(\/|$)/i
+    ]
+  },
+  {
+    key: "chat",
+    patterns: [
+      /(^|\/)chats?(\/|$)/i,
+      /(^|\/)history(\/|$)/i,
+      /(^|\/)histories(\/|$)/i
+    ]
+  },
+  {
+    key: "world",
+    patterns: [
+      /(^|\/)worlds?(\/|$)/i,
+      /(^|\/)worldbooks?(\/|$)/i,
+      /(^|\/)lorebooks?(\/|$)/i
+    ]
+  },
+  {
+    key: "beautify",
+    patterns: [
+      /(^|\/)themes?(\/|$)/i,
+      /(^|\/)theme(\/|$)/i,
+      /(^|\/)extensions?(\/|$)/i,
+      /(^|\/)third-party(\/|$)/i,
+      /(^|\/)plugins?(\/|$)/i,
+      /(^|\/)css(\/|$)/i
+    ]
+  },
+  {
+    key: "background",
+    patterns: [
+      /(^|\/)backgrounds?(\/|$)/i,
+      /(^|\/)bg(\/|$)/i,
+      /(^|\/)backdrop(s)?(\/|$)/i
+    ]
+  }
+];
+
+function emptyTavernResourceStats(): TavernResourceStats {
+  return {
+    preset: 0,
+    character: 0,
+    chat: 0,
+    world: 0,
+    beautify: 0,
+    background: 0
+  };
+}
+
+function shouldSkipPathForBackground(relPath: string): boolean {
+  const lower = relPath.toLowerCase();
+  return (
+    lower.includes("/characters/") ||
+    lower.includes("/character/") ||
+    lower.includes("/chats/") ||
+    lower.includes("/chat/") ||
+    lower.includes("/worlds/") ||
+    lower.includes("/world/")
+  );
+}
+
+function calcTavernResourceStats(items: Array<{ relPath: string; isDir: boolean }>): TavernResourceStats {
+  const stats = emptyTavernResourceStats();
+
+  for (const item of items) {
+    if (item.isDir) continue;
+    const normalized = item.relPath.replace(/\\/g, "/");
+
+    let matched = false;
+    for (const rule of TAVERN_RESOURCE_RULES) {
+      if (rule.key === "background" && shouldSkipPathForBackground(normalized)) {
+        continue;
+      }
+      if (rule.patterns.some((pattern) => pattern.test(normalized))) {
+        stats[rule.key] += 1;
+        matched = true;
+        break;
+      }
+    }
+
+    if (matched) {
+      continue;
+    }
+
+    const ext = path.extname(normalized).toLowerCase();
+    const imageExts = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"]);
+    if (imageExts.has(ext) && !shouldSkipPathForBackground(normalized)) {
+      stats.background += 1;
+    }
+  }
+
+  return stats;
 }
 
 function uniquePaths(paths: string[]): string[] {
@@ -197,11 +308,22 @@ export class DashboardService {
     }
     selectedStats.asset += params.vaultCount;
 
+    let tavernResourceStats = emptyTavernResourceStats();
+    if (selected) {
+      const selectedCached = await this.scanCacheService.getOrRefresh(
+        selected.id,
+        selected.rootPath,
+        "none"
+      );
+      tavernResourceStats = calcTavernResourceStats(selectedCached.items);
+    }
+
     return {
       selectedInstanceId: selected?.id ?? null,
       selectedInstance: summaries.find((item) => item.id === selected?.id),
       instances: summaries,
       resourceStats: selectedStats,
+      tavernResourceStats,
       queueStats: calcQueueStats(params.queueJobs),
       quickActions: [
         { id: "import-zip", title: "导入 ZIP", action: "import-zip" },

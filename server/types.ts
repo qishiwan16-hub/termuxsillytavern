@@ -14,6 +14,15 @@ export type ResourceType =
   | "asset"
   | "other";
 
+export interface TavernResourceStats {
+  preset: number;
+  character: number;
+  chat: number;
+  world: number;
+  beautify: number;
+  background: number;
+}
+
 export interface Instance {
   id: string;
   name: string;
@@ -93,6 +102,7 @@ export interface DashboardSummary {
   selectedInstance?: DashboardInstanceSummary;
   instances: DashboardInstanceSummary[];
   resourceStats: Record<ResourceType, number>;
+  tavernResourceStats: TavernResourceStats;
   queueStats: {
     total: number;
     blocked: number;

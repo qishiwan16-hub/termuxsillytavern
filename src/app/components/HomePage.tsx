@@ -32,7 +32,7 @@ export function HomePage(props: HomePageProps): React.ReactNode {
       <section className="m-home-hero">
         <div className="m-home-hero-shell">
           <div className="m-home-hero-meta">
-            <p className="m-home-hero-net">资源中心</p>
+            <p className="m-home-hero-net">酒馆资源</p>
             <p className="m-home-hero-power">{props.projectRunning ? "在线" : "离线"}</p>
           </div>
 
@@ -106,7 +106,7 @@ export function HomePage(props: HomePageProps): React.ReactNode {
             <p className="m-home-cockpit-eyebrow">资源管理</p>
             <span>进入</span>
           </div>
-          <h3>资源中心</h3>
+          <h3>酒馆资源</h3>
           {props.hasResource ? (
             <ul className="m-home-cockpit-list">
               {props.homeCenterRows.map((item) => (
@@ -126,7 +126,7 @@ export function HomePage(props: HomePageProps): React.ReactNode {
             <p className="m-home-cockpit-eyebrow">分类数量</p>
             <span>查看</span>
           </div>
-          <h3>资源分类</h3>
+          <h3>酒馆分类</h3>
           {props.homeStatsTop.length > 0 ? (
             <ul className="m-home-cockpit-list">
               {props.homeStatsTop.map((item) => (
