@@ -26,59 +26,33 @@ function emptyResourceStats(): Record<ResourceType, number> {
   };
 }
 
-const TAVERN_RESOURCE_RULES: Array<{ key: keyof TavernResourceStats; patterns: RegExp[] }> = [
-  {
-    key: "preset",
-    patterns: [
-      /(^|\/)presets?(\/|$)/i,
-      /(^|\/)instruct(\/|$)/i,
-      /(^|\/)sysprompt(s)?(\/|$)/i
-    ]
-  },
-  {
-    key: "character",
-    patterns: [
-      /(^|\/)characters?(\/|$)/i,
-      /(^|\/)char(s)?(\/|$)/i,
-      /(^|\/)cards?(\/|$)/i
-    ]
-  },
-  {
-    key: "chat",
-    patterns: [
-      /(^|\/)chats?(\/|$)/i,
-      /(^|\/)history(\/|$)/i,
-      /(^|\/)histories(\/|$)/i
-    ]
-  },
-  {
-    key: "world",
-    patterns: [
-      /(^|\/)worlds?(\/|$)/i,
-      /(^|\/)worldbooks?(\/|$)/i,
-      /(^|\/)lorebooks?(\/|$)/i
-    ]
-  },
-  {
-    key: "beautify",
-    patterns: [
-      /(^|\/)themes?(\/|$)/i,
-      /(^|\/)theme(\/|$)/i,
-      /(^|\/)extensions?(\/|$)/i,
-      /(^|\/)third-party(\/|$)/i,
-      /(^|\/)plugins?(\/|$)/i,
-      /(^|\/)css(\/|$)/i
-    ]
-  },
-  {
-    key: "background",
-    patterns: [
-      /(^|\/)backgrounds?(\/|$)/i,
-      /(^|\/)bg(\/|$)/i,
-      /(^|\/)backdrop(s)?(\/|$)/i
-    ]
-  }
-];
+const USER_ROOT_META_FILES = new Set(["settings.json", "secrets.json", "stats.json", "config.yaml"]);
+
+const TAVERN_USER_DIR_ALIASES: Record<keyof TavernResourceStats, Set<string>> = {
+  preset: new Set([
+    "openai settings",
+    "openai setting",
+    "openai-settings",
+    "openai_settings",
+    "instruct",
+    "presets",
+    "preset",
+    "sysprompt",
+    "sysprompts"
+  ]),
+  character: new Set(["characters"]),
+  chat: new Set(["chats", "groups"]),
+  world: new Set(["worlds"]),
+  beautify: new Set(["themes", "extensions"]),
+  background: new Set([
+    "backgrounds",
+    "background",
+    "user avatars",
+    "user-avatars",
+    "user_avatars",
+    "avatars"
+  ])
+};
 
 function emptyTavernResourceStats(): TavernResourceStats {
   return {
@@ -91,16 +65,64 @@ function emptyTavernResourceStats(): TavernResourceStats {
   };
 }
 
-function shouldSkipPathForBackground(relPath: string): boolean {
-  const lower = relPath.toLowerCase();
-  return (
-    lower.includes("/characters/") ||
-    lower.includes("/character/") ||
-    lower.includes("/chats/") ||
-    lower.includes("/chat/") ||
-    lower.includes("/worlds/") ||
-    lower.includes("/world/")
-  );
+function normalizeSegment(segment: string): string {
+  return segment
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeRelPath(relPath: string): string {
+  return relPath.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").toLowerCase();
+}
+
+function isTrackedUserEntry(segment: string): boolean {
+  const normalized = normalizeSegment(segment);
+  if (USER_ROOT_META_FILES.has(normalized)) {
+    return true;
+  }
+  return Object.values(TAVERN_USER_DIR_ALIASES).some((aliases) => aliases.has(normalized));
+}
+
+function toUserScopedSegments(relPath: string): string[] | null {
+  const parts = normalizeRelPath(relPath).split("/").filter(Boolean);
+  if (parts.length === 0) {
+    return null;
+  }
+
+  // rootPath 已经是 data/<user>（例如 .../data/default-user 或 .../data/shenhanyan）
+  if (isTrackedUserEntry(parts[0] ?? "")) {
+    return parts;
+  }
+
+  // rootPath 是 SillyTavern 根（.../SillyTavern）=> data/<user>/<tracked>
+  if ((parts[0] ?? "") === "data" && parts.length >= 3 && isTrackedUserEntry(parts[2] ?? "")) {
+    return parts.slice(2);
+  }
+
+  // rootPath 是 data 根（.../SillyTavern/data）=> <user>/<tracked>
+  if (parts.length >= 2 && isTrackedUserEntry(parts[1] ?? "")) {
+    return parts.slice(1);
+  }
+
+  return null;
+}
+
+function classifyByUserTopDir(scopedSegments: string[]): keyof TavernResourceStats | null {
+  const topDir = normalizeSegment(scopedSegments[0] ?? "");
+  if (!topDir || USER_ROOT_META_FILES.has(topDir)) {
+    return null;
+  }
+
+  if (TAVERN_USER_DIR_ALIASES.preset.has(topDir)) return "preset";
+  if (TAVERN_USER_DIR_ALIASES.character.has(topDir)) return "character";
+  if (TAVERN_USER_DIR_ALIASES.chat.has(topDir)) return "chat";
+  if (TAVERN_USER_DIR_ALIASES.world.has(topDir)) return "world";
+  if (TAVERN_USER_DIR_ALIASES.beautify.has(topDir)) return "beautify";
+  if (TAVERN_USER_DIR_ALIASES.background.has(topDir)) return "background";
+
+  return null;
 }
 
 function calcTavernResourceStats(items: Array<{ relPath: string; isDir: boolean }>): TavernResourceStats {
@@ -108,29 +130,14 @@ function calcTavernResourceStats(items: Array<{ relPath: string; isDir: boolean 
 
   for (const item of items) {
     if (item.isDir) continue;
-    const normalized = item.relPath.replace(/\\/g, "/");
 
-    let matched = false;
-    for (const rule of TAVERN_RESOURCE_RULES) {
-      if (rule.key === "background" && shouldSkipPathForBackground(normalized)) {
-        continue;
-      }
-      if (rule.patterns.some((pattern) => pattern.test(normalized))) {
-        stats[rule.key] += 1;
-        matched = true;
-        break;
-      }
-    }
+    const scopedSegments = toUserScopedSegments(item.relPath);
+    if (!scopedSegments) continue;
 
-    if (matched) {
-      continue;
-    }
+    const category = classifyByUserTopDir(scopedSegments);
+    if (!category) continue;
 
-    const ext = path.extname(normalized).toLowerCase();
-    const imageExts = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"]);
-    if (imageExts.has(ext) && !shouldSkipPathForBackground(normalized)) {
-      stats.background += 1;
-    }
+    stats[category] += 1;
   }
 
   return stats;
