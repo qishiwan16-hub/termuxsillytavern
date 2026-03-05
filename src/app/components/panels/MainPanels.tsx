@@ -135,12 +135,23 @@ interface CharacterPanelProps {
   cards: CharacterCardItem[];
   selectedRelPath: string;
   onRefresh: () => void;
-  onSelectCard: (relPath: string) => void;
+  onEnterCard: (relPath: string) => void;
+}
+
+function toReadableSize(size?: number): string {
+  if (typeof size !== "number" || !Number.isFinite(size) || size <= 0) return "-";
+  if (size < 1024) return `${size} B`;
+  const kb = size / 1024;
+  if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+}
+
+function toCardDisplayName(filename: string): string {
+  return filename.replace(/\.[^.]+$/, "") || filename;
 }
 
 export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
-  const selected = props.cards.find((item) => item.relPath === props.selectedRelPath) ?? null;
-
   return (
     <section className="m-card">
       <h2>角色卡管理</h2>
@@ -152,63 +163,44 @@ export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
         <span className="m-muted">可识别文件：{props.cards.length}</span>
       </div>
 
-      <div className="m-character-layout">
-        <article className="m-character-pane m-character-list-pane">
-          <p className="m-muted">角色列表</p>
-          <ul className="m-list-clean m-character-list">
-            {props.cards.length > 0 ? (
-              props.cards.map((item) => (
-                <li key={item.relPath}>
-                  <button
-                    type="button"
-                    className={`m-character-item-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
-                    onClick={() => props.onSelectCard(item.relPath)}
-                  >
-                    <span className="m-character-item-brand">m-character</span>
-                    <span className="m-character-item-icon" aria-hidden="true">
-                      ◫
-                    </span>
-                    <h3 className="m-character-item-title m-break">{item.name}</h3>
-                    <p className="m-character-item-sub">TYPE · {item.ext.toUpperCase()}</p>
-                    <span className="m-character-item-cta">VIEW INSIDE →</span>
-                  </button>
-                </li>
-              ))
-            ) : (
-              <li className="m-muted">当前目录暂无可识别角色卡文件</li>
-            )}
-          </ul>
-        </article>
-
-        <article className="m-character-pane m-character-detail-pane">
-          <p className="m-muted">详情区</p>
-          {selected ? (
-            <div className="m-character-detail-grid">
-              <div className="m-character-detail-card">
-                <p className="m-muted">文件名</p>
-                <p className="m-break">{selected.name}</p>
-              </div>
-              <div className="m-character-detail-card">
-                <p className="m-muted">文件类型</p>
-                <p>{selected.ext.toUpperCase()}</p>
-              </div>
-              <div className="m-character-detail-card">
-                <p className="m-muted">文件大小</p>
-                <p>{typeof selected.size === "number" ? `${Math.max(1, Math.round(selected.size / 1024))} KB` : "-"}</p>
-              </div>
-              <div className="m-character-editor-placeholder">
-                <p className="m-muted">编辑区（预留）</p>
-                <p>后续将接入角色信息编辑、头像预览与保存操作。</p>
-              </div>
-            </div>
-          ) : (
-            <div className="m-character-editor-placeholder">
-              <p className="m-muted">详情区</p>
-              <p>{props.loading ? "正在读取角色卡目录..." : "请先从左侧选择角色卡"}</p>
-            </div>
-          )}
-        </article>
-      </div>
+      <ul className="m-list-clean m-character-list m-character-list-full">
+        {props.cards.length > 0 ? (
+          props.cards.map((item) => {
+            const displayName = toCardDisplayName(item.name);
+            return (
+              <li key={item.relPath}>
+                <button
+                  type="button"
+                  className={`m-character-item-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
+                  onClick={() => props.onEnterCard(item.relPath)}
+                >
+                  {item.imageUrl ? (
+                    <img className="m-character-cover" src={item.imageUrl} alt={`${displayName} 角色卡`} loading="lazy" />
+                  ) : (
+                    <div className="m-character-cover m-character-cover-placeholder" aria-hidden="true">
+                      <span>NO IMAGE</span>
+                    </div>
+                  )}
+                  <div className="m-character-info">
+                    <p className="m-character-info-head">角色卡 / CHARACTER</p>
+                    <div className="m-character-info-grid">
+                      <p className="m-character-field-label">姓名 / NAME</p>
+                      <p className="m-character-field-value m-break">{displayName}</p>
+                      <p className="m-character-field-label">性别 / SEX</p>
+                      <p className="m-character-field-value">{item.cardType}</p>
+                      <p className="m-character-field-label">籍贯 / NATIVE</p>
+                      <p className="m-character-field-value">{toReadableSize(item.size)}</p>
+                    </div>
+                    <span className="m-character-item-cta">点击进入</span>
+                  </div>
+                </button>
+              </li>
+            );
+          })
+        ) : (
+          <li className="m-muted">{props.loading ? "正在读取角色卡目录..." : "当前目录暂无可识别角色卡文件"}</li>
+        )}
+      </ul>
     </section>
   );
 }

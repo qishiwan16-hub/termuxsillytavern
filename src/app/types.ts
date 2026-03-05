@@ -110,6 +110,8 @@ export interface CharacterCardItem {
   relPath: string;
   size?: number;
   ext: "png" | "webp" | "json";
+  cardType: "json" | "png";
+  imageUrl?: string;
 }
 
 export interface PresetBasicSettings {

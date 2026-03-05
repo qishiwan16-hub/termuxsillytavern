@@ -235,7 +235,8 @@ function collectCharacterCardFiles(nodes: Array<{ name: string; relPath: string;
       name: item.name,
       relPath: item.relPath,
       size: item.size,
-      ext: ext as "png" | "webp" | "json"
+      ext: ext as "png" | "webp" | "json",
+      cardType: ext === "json" ? ("json" as const) : ("png" as const)
     }));
 
   return cards.sort((a, b) => a.relPath.localeCompare(b.relPath, "zh-CN"));
@@ -926,7 +927,20 @@ export function App() {
       const tree = await apiGet<InstanceTreeResp>(
         `/api/instances/${instanceId}/tree?path=${encodeURIComponent(baseRelDir)}`
       );
-      const files = collectCharacterCardFiles(tree.nodes);
+      const files = collectCharacterCardFiles(tree.nodes).map((item) => {
+        if (item.ext === "json") {
+          return {
+            ...item,
+            imageUrl: ""
+          };
+        }
+        const fullPath = `${baseRelDir}/${item.relPath}`.replace(/\\/g, "/").replace(/^\/+/, "");
+        const imageUrl = `/api/resources/content?source=instance&instanceId=${encodeURIComponent(instanceId)}&relPath=${encodeURIComponent(fullPath)}`;
+        return {
+          ...item,
+          imageUrl
+        };
+      });
       setCharacterCards(files);
       setCharacterCardCount(files.length);
       if (files.length === 0) {
@@ -1142,7 +1156,10 @@ export function App() {
         cards={characterCards}
         selectedRelPath={characterSelectedRelPath}
         onRefresh={() => void refreshCharacterPanel(characterSelectedRelPath)}
-        onSelectCard={setCharacterSelectedRelPath}
+        onEnterCard={(relPath) => {
+          setCharacterSelectedRelPath(relPath);
+          setToast("已进入角色卡");
+        }}
       />
     ) : activePanel === "preset" ? (
       <PresetPanel
