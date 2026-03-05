@@ -124,13 +124,15 @@ function extractPresetSettings(content: string): { settings: PresetBasicSettings
 
 function inferPresetBaseRelDir(rootPath: string | undefined): string {
   const normalized = (rootPath ?? "").replace(/\\/g, "/").replace(/\/+$/, "");
+  if (!normalized) return "";
+
+  // rootPath 为 .../SillyTavern/data/<user>
   if (/\/data\/[^/]+$/i.test(normalized)) {
     return "OpenAI Settings";
   }
-  if (/\/data$/i.test(normalized)) {
-    return "default-user/OpenAI Settings";
-  }
-  return "data/default-user/OpenAI Settings";
+
+  // rootPath 为 .../SillyTavern 或 .../SillyTavern/data 时无法在前端可靠推导 <user>，禁止回退固定用户目录
+  return "";
 }
 
 function upsertNumericSetting(target: Record<string, unknown>, aliases: string[], nextValue: string): void {
@@ -261,6 +263,7 @@ export function App() {
   const [presetRawContent, setPresetRawContent] = useState("");
   const [presetRawError, setPresetRawError] = useState("");
   const [presetSettings, setPresetSettings] = useState<PresetBasicSettings>({ ...DEFAULT_PRESET_SETTINGS });
+  const [presetJsonCount, setPresetJsonCount] = useState(0);
 
   const currentInstance = useMemo(() => instances.find((item) => item.id === instanceId), [instances, instanceId]);
   const selectedItems = useMemo(
@@ -301,14 +304,14 @@ export function App() {
   const homeCenterRows = useMemo(() => {
     const stats = dashboard?.tavernResourceStats;
     return [
-      { label: "预设", value: stats?.preset ?? 0, panel: "preset" as const },
+      { label: "预设", value: presetJsonCount, panel: "preset" as const },
       { label: "角色卡", value: stats?.character ?? 0, panel: "resources" as const },
       { label: "聊天文件", value: stats?.chat ?? 0, panel: "resources" as const },
       { label: "世界书", value: stats?.world ?? 0, panel: "resources" as const },
       { label: "美化", value: stats?.beautify ?? 0, panel: "resources" as const },
       { label: "背景图", value: stats?.background ?? 0, panel: "resources" as const }
     ];
-  }, [dashboard]);
+  }, [dashboard, presetJsonCount]);
   const appStyle = useMemo(
     () =>
       ({
@@ -815,6 +818,30 @@ export function App() {
     }
   }
 
+  async function refreshPresetCount(target?: { instanceId?: string; rootPath?: string }): Promise<void> {
+    const targetInstanceId = target?.instanceId ?? instanceId;
+    const targetRootPath = target?.rootPath ?? currentInstance?.rootPath;
+    if (!targetInstanceId) {
+      setPresetJsonCount(0);
+      return;
+    }
+
+    const baseRelDir = inferPresetBaseRelDir(targetRootPath);
+    if (!baseRelDir) {
+      setPresetJsonCount(0);
+      return;
+    }
+
+    try {
+      const tree = await apiGet<InstanceTreeResp>(
+        `/api/instances/${targetInstanceId}/tree?path=${encodeURIComponent(baseRelDir)}`
+      );
+      setPresetJsonCount(collectPresetFiles(tree.nodes).length);
+    } catch {
+      setPresetJsonCount(0);
+    }
+  }
+
   async function refreshPresetPanel(preferredRelPath?: string): Promise<void> {
     if (!instanceId) {
       setPresetBaseRelDir("");
@@ -823,10 +850,22 @@ export function App() {
       setPresetRawContent("");
       setPresetRawError("");
       setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
+      setPresetJsonCount(0);
       return;
     }
     const baseRelDir = inferPresetBaseRelDir(currentInstance?.rootPath);
     setPresetBaseRelDir(baseRelDir);
+
+    if (!baseRelDir) {
+      setPresetFiles([]);
+      setPresetSelectedRelPath("");
+      setPresetRawContent("");
+      setPresetRawError("");
+      setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
+      setPresetReadOnly(false);
+      setPresetJsonCount(0);
+      return;
+    }
 
     setPresetLoading(true);
     try {
@@ -836,6 +875,7 @@ export function App() {
       const files = collectPresetFiles(tree.nodes);
 
       setPresetFiles(files);
+      setPresetJsonCount(files.length);
       if (files.length === 0) {
         setPresetSelectedRelPath("");
         setPresetRawContent("");
@@ -857,6 +897,7 @@ export function App() {
       setPresetRawContent("");
       setPresetRawError("");
       setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
+      setPresetJsonCount(0);
       setToast(error instanceof Error ? error.message : String(error));
     } finally {
       setPresetLoading(false);
@@ -939,6 +980,15 @@ export function App() {
     void refreshPresetPanel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePanel, instanceId, currentInstance?.rootPath]);
+
+  useEffect(() => {
+    if (authMode !== "ready") {
+      setPresetJsonCount(0);
+      return;
+    }
+    void refreshPresetCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authMode, instanceId, currentInstance?.rootPath]);
 
   const normalizedProjectPathDraft = normalizeProjectPath(projectPathDraft);
   const projectPathFavoriteValue = projectPathFavorites.includes(normalizedProjectPathDraft)
