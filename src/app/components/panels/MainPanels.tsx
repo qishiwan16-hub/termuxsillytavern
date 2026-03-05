@@ -127,25 +127,20 @@ export function ResourcesPanel(props: ResourcesPanelProps): React.ReactNode {
 }
 
 interface PresetPanelProps {
-  loading: boolean;
   baseRelDir: string;
   files: PresetFileItem[];
   selectedRelPath: string;
   readOnly: boolean;
-  truncated: boolean;
-  rawContent: string;
   rawError: string;
   settings: PresetBasicSettings;
   onRefresh: () => void;
   onSelectFile: (relPath: string) => void;
-  onRawChange: (value: string) => void;
   onPatchSettings: (patch: Partial<PresetBasicSettings>) => void;
   onSave: () => void;
 }
 
 export function PresetPanel(props: PresetPanelProps): React.ReactNode {
   const selectedFileName = props.selectedRelPath.split("/").pop() ?? "";
-  const canEditRaw = Boolean(props.selectedRelPath) && !props.readOnly;
 
   return (
     <section className="m-card">
@@ -250,19 +245,6 @@ export function PresetPanel(props: PresetPanelProps): React.ReactNode {
             启用流式输出
           </label>
 
-          {props.loading ? <p className="m-muted">正在加载预设内容...</p> : null}
-          {props.readOnly ? <p className="m-error">文件过大，当前只读，无法保存。</p> : null}
-          {props.truncated ? <p className="m-muted">文件内容已截断显示，仅用于快速检查。</p> : null}
-          {props.rawError ? <p className="m-error">{props.rawError}</p> : null}
-
-          <textarea
-            className="m-input m-preset-editor"
-            value={props.rawContent}
-            onChange={(event) => props.onRawChange(event.target.value)}
-            placeholder="在这里编辑预设 JSON"
-            spellCheck={false}
-            disabled={!canEditRaw}
-          />
         </article>
       </div>
     </section>

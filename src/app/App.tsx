@@ -196,25 +196,15 @@ function applySettingsToContent(content: string, patch: Partial<PresetBasicSetti
 }
 
 function collectPresetFiles(nodes: Array<{ name: string; relPath: string; isDir: boolean; size?: number; children?: unknown }>): PresetFileItem[] {
-  const result: PresetFileItem[] = [];
+  const result = nodes
+    .filter((item) => !item.isDir)
+    .filter((item) => item.name.toLowerCase().endsWith(".json"))
+    .map((item) => ({
+      name: item.name,
+      relPath: item.relPath,
+      size: item.size
+    }));
 
-  function walk(list: Array<{ name: string; relPath: string; isDir: boolean; size?: number; children?: unknown }>): void {
-    for (const item of list) {
-      if (item.isDir) {
-        if (Array.isArray(item.children) && item.children.length > 0) {
-          walk(item.children as Array<{ name: string; relPath: string; isDir: boolean; size?: number; children?: unknown }>);
-        }
-        continue;
-      }
-      result.push({
-        name: item.name,
-        relPath: item.relPath,
-        size: item.size
-      });
-    }
-  }
-
-  walk(nodes);
   return result.sort((a, b) => a.relPath.localeCompare(b.relPath, "zh-CN"));
 }
 
@@ -268,7 +258,6 @@ export function App() {
   const [presetFiles, setPresetFiles] = useState<PresetFileItem[]>([]);
   const [presetSelectedRelPath, setPresetSelectedRelPath] = useState("");
   const [presetReadOnly, setPresetReadOnly] = useState(false);
-  const [presetTruncated, setPresetTruncated] = useState(false);
   const [presetRawContent, setPresetRawContent] = useState("");
   const [presetRawError, setPresetRawError] = useState("");
   const [presetSettings, setPresetSettings] = useState<PresetBasicSettings>({ ...DEFAULT_PRESET_SETTINGS });
@@ -815,7 +804,6 @@ export function App() {
       );
       setPresetSelectedRelPath(relPath);
       setPresetReadOnly(Boolean(file.readOnly));
-      setPresetTruncated(Boolean(file.truncated));
       setPresetRawContent(file.content);
       const parsed = extractPresetSettings(file.content);
       setPresetSettings(parsed.settings);
@@ -854,7 +842,6 @@ export function App() {
         setPresetRawError("");
         setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
         setPresetReadOnly(false);
-        setPresetTruncated(false);
         return;
       }
 
@@ -874,13 +861,6 @@ export function App() {
     } finally {
       setPresetLoading(false);
     }
-  }
-
-  function handlePresetRawChange(next: string): void {
-    setPresetRawContent(next);
-    const parsed = extractPresetSettings(next);
-    setPresetSettings(parsed.settings);
-    setPresetRawError(parsed.error);
   }
 
   function handlePresetPatch(patch: Partial<PresetBasicSettings>): void {
@@ -989,20 +969,16 @@ export function App() {
       />
     ) : activePanel === "preset" ? (
       <PresetPanel
-        loading={presetLoading}
         baseRelDir={presetBaseRelDir}
         files={presetFiles}
         selectedRelPath={presetSelectedRelPath}
         readOnly={presetReadOnly}
-        truncated={presetTruncated}
-        rawContent={presetRawContent}
         rawError={presetRawError}
         settings={presetSettings}
         onRefresh={() => void refreshPresetPanel(presetSelectedRelPath)}
         onSelectFile={(relPath) => {
           void loadPresetFile(relPath, presetBaseRelDir);
         }}
-        onRawChange={handlePresetRawChange}
         onPatchSettings={handlePresetPatch}
         onSave={() => void savePreset()}
       />

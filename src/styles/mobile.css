@@ -1443,13 +1443,6 @@ body {
   font-size: 12px;
 }
 
-.m-preset-editor {
-  min-height: 340px;
-  font-family: "JetBrains Mono", "Consolas", monospace;
-  line-height: 1.45;
-  resize: vertical;
-}
-
 @media (max-width: 520px) {
   .m-home-cockpit {
     grid-template-columns: repeat(2, minmax(0, 1fr));
