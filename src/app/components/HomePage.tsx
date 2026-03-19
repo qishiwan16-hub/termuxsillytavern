@@ -22,7 +22,6 @@ interface HomePageProps {
   homeStatsTop: ResourceStatItem[];
   hasResource: boolean;
   onOpenProfile: () => void;
-  onRefresh: () => void;
   onOpenPanel: (panel: PanelKey) => void;
   formatDate: (value?: string) => string;
 }
@@ -36,37 +35,31 @@ export function HomePage(props: HomePageProps): React.ReactNode {
         <div className="m-home-hero-shell hero-card">
           <div className="m-home-hero-main hero-main">
             <div className="m-home-hero-copy">
-              <p className="m-home-hero-kicker">{props.projectRunning ? "在线" : "离线"}</p>
-              <h2 className="m-home-user-name m-break">{props.profileName || "未命名用户"}</h2>
-              <p className="m-home-user-meta m-break">IP：{props.projectName || "未设置项目"}</p>
+              <p className="m-home-hero-kicker">{props.projectRunning ? "\u5728\u7ebf" : "\u79bb\u7ebf"}</p>
+              <h2 className="m-home-user-name m-break">{props.profileName || "\u672a\u547d\u540d\u7528\u6237"}</h2>
+              <p className="m-home-user-meta m-break">{"IP\uff1a"}{props.projectName || "\u672a\u8bbe\u7f6e\u9879\u76ee"}</p>
             </div>
 
             <button
               type="button"
               className="m-profile-trigger m-home-hero-avatar hero-avatar"
               onClick={props.onOpenProfile}
-              aria-label="打开个人资料"
+              aria-label="\u6253\u5f00\u4e2a\u4eba\u8d44\u6599"
             >
-              {props.profileAvatar ? <img src={props.profileAvatar} alt="头像" /> : <span>{props.profileInitials}</span>}
+              {props.profileAvatar ? <img src={props.profileAvatar} alt="\u5934\u50cf" /> : <span>{props.profileInitials}</span>}
             </button>
           </div>
 
           <div className="m-home-hero-meta hero-meta">
-            <span className="m-home-hero-pill">队列任务 {props.queueTotal}</span>
-            <span className="m-home-hero-pill">失败 {props.queueFailed}</span>
-            <button type="button" className="m-home-hero-pill m-home-hero-pill-action" onClick={props.onRefresh}>
-              Share
-            </button>
-            <button type="button" className="m-home-hero-pill m-home-hero-pill-action" onClick={props.onOpenProfile}>
-              Use Template
-            </button>
+            <span className="m-home-hero-pill">{"\u961f\u5217\u4efb\u52a1 "}{props.queueTotal}</span>
+            <span className="m-home-hero-pill">{"\u5931\u8d25 "}{props.queueFailed}</span>
           </div>
         </div>
       </section>
 
       <section className="m-home-metrics">
         <div className="m-home-metric">
-          <p className="m-home-metric-label">队列健康度</p>
+          <p className="m-home-metric-label">{"\u961f\u5217\u5065\u5eb7\u5ea6"}</p>
           <p className="m-home-metric-value">
             {props.queueHealth}
             <span>%</span>
@@ -74,7 +67,7 @@ export function HomePage(props: HomePageProps): React.ReactNode {
         </div>
 
         <div className="m-home-metric">
-          <p className="m-home-metric-label">资源总数</p>
+          <p className="m-home-metric-label">{"\u8d44\u6e90\u603b\u6570"}</p>
           <p className="m-home-metric-value">{resourceTotal.toLocaleString("zh-CN")}</p>
         </div>
       </section>
@@ -84,22 +77,22 @@ export function HomePage(props: HomePageProps): React.ReactNode {
           <span className="dot" />
           REC
         </p>
-        <p className="m-home-rec-title">系统记录</p>
+        <p className="m-home-rec-title">{"\u7cfb\u7edf\u8bb0\u5f55"}</p>
         <div className="m-home-rec-grid">
           <button type="button" onClick={() => props.onOpenPanel("git")}>
-            <span>最近同步</span>
+            <span>{"\u6700\u8fd1\u540c\u6b65"}</span>
             <strong>{props.formatDate(props.updatedAt)}</strong>
           </button>
           <button type="button" onClick={() => props.onOpenPanel("settings")}>
-            <span>项目版本</span>
+            <span>{"\u9879\u76ee\u7248\u672c"}</span>
             <strong>{props.version ?? "unknown"}</strong>
           </button>
           <button type="button" onClick={() => props.onOpenPanel("git")}>
-            <span>队列任务</span>
+            <span>{"\u961f\u5217\u4efb\u52a1"}</span>
             <strong>{props.queueTotal}</strong>
           </button>
           <button type="button" onClick={() => props.onOpenPanel("queue")}>
-            <span>失败任务</span>
+            <span>{"\u5931\u8d25\u4efb\u52a1"}</span>
             <strong>{props.queueFailed}</strong>
           </button>
         </div>
@@ -108,10 +101,10 @@ export function HomePage(props: HomePageProps): React.ReactNode {
       <section className="m-home-cockpit">
         <article className="m-home-cockpit-card">
           <div className="m-home-cockpit-head">
-            <p className="m-home-cockpit-eyebrow">资源管理</p>
-            <span>分类入口</span>
+            <p className="m-home-cockpit-eyebrow">{"\u8d44\u6e90\u7ba1\u7406"}</p>
+            <span>{"\u5206\u7c7b\u5165\u53e3"}</span>
           </div>
-          <h3>酒馆资源</h3>
+          <h3>{"\u9152\u9986\u8d44\u6e90"}</h3>
           {props.hasResource ? (
             <ul className="m-home-cockpit-list m-home-cockpit-list-action">
               {props.homeCenterRows.map((item) => (
@@ -124,16 +117,16 @@ export function HomePage(props: HomePageProps): React.ReactNode {
               ))}
             </ul>
           ) : (
-            <p className="m-home-cockpit-empty">当前暂无资源</p>
+            <p className="m-home-cockpit-empty">{"\u5f53\u524d\u6682\u65e0\u8d44\u6e90"}</p>
           )}
         </article>
 
         <button type="button" className="m-home-cockpit-card" onClick={() => props.onOpenPanel("resources")}>
           <div className="m-home-cockpit-head">
-            <p className="m-home-cockpit-eyebrow">分类数量</p>
-            <span>查看</span>
+            <p className="m-home-cockpit-eyebrow">{"\u5206\u7c7b\u6570\u91cf"}</p>
+            <span>{"\u67e5\u770b"}</span>
           </div>
-          <h3>酒馆分类</h3>
+          <h3>{"\u9152\u9986\u5206\u7c7b"}</h3>
           {props.homeStatsTop.length > 0 ? (
             <ul className="m-home-cockpit-list">
               {props.homeStatsTop.map((item) => (
@@ -144,15 +137,15 @@ export function HomePage(props: HomePageProps): React.ReactNode {
               ))}
             </ul>
           ) : (
-            <p className="m-home-cockpit-empty">暂无记录</p>
+            <p className="m-home-cockpit-empty">{"\u6682\u65e0\u8bb0\u5f55"}</p>
           )}
         </button>
       </section>
 
       <section className="m-home-cloud-strip">
         <button type="button" className="m-home-cloud-btn" onClick={() => props.onOpenPanel("cloud")}>
-          <span className="m-home-cloud-title">云端存储</span>
-          <span className="m-home-cloud-sub">云盘 ZIP / Git 仓库 双模式兼容</span>
+          <span className="m-home-cloud-title">{"\u4e91\u7aef\u5b58\u50a8"}</span>
+          <span className="m-home-cloud-sub">{"\u4e91\u76d8 ZIP / Git \u4ed3\u5e93 \u53cc\u6a21\u5f0f\u517c\u5bb9"}</span>
         </button>
       </section>
     </section>

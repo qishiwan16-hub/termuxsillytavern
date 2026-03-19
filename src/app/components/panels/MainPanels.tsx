@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import type {
   AppSettings,
   CharacterCardItem,
   PanelKey,
-  PresetBasicSettings,
   PresetFileItem,
   QueueJob,
   ResourceResp,
@@ -133,18 +132,16 @@ interface CharacterPanelProps {
   baseRelDir: string;
   loading: boolean;
   cards: CharacterCardItem[];
-  selectedRelPath: string;
   onRefresh: () => void;
-  onEnterCard: (relPath: string) => void;
 }
 
 function toReadableSize(size?: number): string {
   if (typeof size !== "number" || !Number.isFinite(size) || size <= 0) return "-";
-  if (size < 1024) return `${size} B`;
+  if (size < 1024) return String(size) + " B";
   const kb = size / 1024;
-  if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
+  if (kb < 1024) return String(Math.max(1, Math.round(kb))) + " KB";
   const mb = kb / 1024;
-  return `${mb.toFixed(1)} MB`;
+  return mb.toFixed(1) + " MB";
 }
 
 function toCardDisplayName(filename: string): string {
@@ -152,251 +149,92 @@ function toCardDisplayName(filename: string): string {
 }
 
 export function CharacterPanel(props: CharacterPanelProps): React.ReactNode {
-  const [detailRelPath, setDetailRelPath] = useState("");
-
-  const detailItem = useMemo(
-    () => props.cards.find((item) => item.relPath === detailRelPath) ?? null,
-    [props.cards, detailRelPath]
-  );
-
-  useEffect(() => {
-    if (!detailRelPath) return;
-    if (!props.cards.some((item) => item.relPath === detailRelPath)) {
-      setDetailRelPath("");
-    }
-  }, [props.cards, detailRelPath]);
-
-  const handleEnterDetail = (relPath: string): void => {
-    setDetailRelPath(relPath);
-    props.onEnterCard(relPath);
-  };
-
-  const handleBackToList = (): void => {
-    setDetailRelPath("");
-  };
-
   return (
     <section className="m-card m-character-panel">
-      <h2>角色卡管理</h2>
-      <p className="m-muted m-break">目录：{props.baseRelDir ? `data/<user>/${props.baseRelDir}` : "未检测到 data/<user>/characters"}</p>
+      <h2>{"\u89d2\u8272\u5361\u7ba1\u7406"}</h2>
+      <p className="m-muted m-break">{"\u76ee\u5f55\uff1a"}{props.baseRelDir ? "data/<user>/" + props.baseRelDir : "\u672a\u68c0\u6d4b\u5230 data/<user>/characters"}</p>
       <div className="m-actions-row m-character-toolbar">
         <button type="button" className="m-btn m-btn-ghost" onClick={props.onRefresh}>
-          刷新角色卡
+          {"\u5237\u65b0\u89d2\u8272\u5361"}
         </button>
-        <span className="m-muted">可识别文件：{props.cards.length}</span>
+        <span className="m-muted">{"\u53ef\u8bc6\u522b\u6587\u4ef6\uff1a"}{props.cards.length}</span>
       </div>
 
-      {detailItem ? (
-        <section className="m-character-detail" aria-label="角色详情">
-          <header className="m-character-detail-top">
-            <button type="button" className="m-btn m-btn-ghost" onClick={handleBackToList}>
-              返回列表
-            </button>
-            <div className="m-character-detail-title-wrap">
-              <h3 className="m-character-detail-title m-break">{toCardDisplayName(detailItem.name)}</h3>
-              <p className="m-character-detail-subtitle">角色详情占位文本 · 结构预览阶段</p>
-            </div>
-            <div className="m-character-detail-avatar" aria-hidden="true">
-              {detailItem.imageUrl ? <img src={detailItem.imageUrl} alt="角色头像" loading="lazy" /> : <span>NO IMAGE</span>}
-            </div>
-          </header>
-
-          <div className="m-character-detail-banner" role="img" aria-label="角色横幅图">
-            {detailItem.imageUrl ? <img src={detailItem.imageUrl} alt="角色横幅" loading="lazy" /> : <span>角色横幅占位</span>}
-          </div>
-
-          <div className="m-character-detail-grid" aria-label="角色详情骨架卡片区">
-            <article className="m-character-detail-card">
-              <p className="m-character-detail-card-label">基础信息</p>
-              <p className="m-character-detail-card-value">占位内容</p>
-            </article>
-            <article className="m-character-detail-card">
-              <p className="m-character-detail-card-label">设定摘要</p>
-              <p className="m-character-detail-card-value">占位内容</p>
-            </article>
-
-            <article className="m-character-detail-control-card">
-              <div>
-                <p className="m-character-detail-card-label">控制卡</p>
-                <p className="m-character-detail-card-value">横向控制区域占位</p>
-              </div>
-              <button type="button" className="m-btn" disabled>
-                占位按钮
-              </button>
-            </article>
-
-            <article className="m-character-detail-card">
-              <p className="m-character-detail-card-label">补充字段</p>
-              <p className="m-character-detail-card-value">占位内容</p>
-            </article>
-            <article className="m-character-detail-card">
-              <p className="m-character-detail-card-label">扩展字段</p>
-              <p className="m-character-detail-card-value">占位内容</p>
-            </article>
-          </div>
-        </section>
-      ) : (
-        <ul className="m-list-clean m-character-list m-character-list-full">
-          {props.cards.length > 0 ? (
-            props.cards.map((item) => {
-              const displayName = toCardDisplayName(item.name);
-              return (
-                <li key={item.relPath}>
-                  <button
-                    type="button"
-                    className={`m-character-item-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
-                    onClick={() => handleEnterDetail(item.relPath)}
-                  >
-                    {item.imageUrl ? (
-                      <img className="m-character-cover" src={item.imageUrl} alt={`${displayName} 角色卡`} loading="lazy" />
-                    ) : (
-                      <div className="m-character-cover m-character-cover-placeholder" aria-hidden="true">
-                        <span>NO IMAGE</span>
-                      </div>
-                    )}
-                    <div className="m-character-info">
-                      <div className="m-character-fields">
-                        <p className="m-character-field-label">姓名 / NAME</p>
-                        <p className="m-character-field-value m-break">{displayName}</p>
-                        <p className="m-character-field-label">类型 / TYPE</p>
-                        <p className="m-character-field-value">{item.cardType}</p>
-                        <p className="m-character-field-label">文件大小 / SIZE</p>
-                        <p className="m-character-field-value">{toReadableSize(item.size)}</p>
-                      </div>
-                      <span className="m-character-item-cta">点击进入</span>
+      <ul className="m-list-clean m-character-list m-character-list-full">
+        {props.cards.length > 0 ? (
+          props.cards.map((item) => {
+            const displayName = toCardDisplayName(item.name);
+            return (
+              <li key={item.relPath}>
+                <article className="m-character-item-card" aria-label={displayName}>
+                  {item.imageUrl ? (
+                    <img className="m-character-cover" src={item.imageUrl} alt={displayName + " \u89d2\u8272\u5361"} loading="lazy" />
+                  ) : (
+                    <div className="m-character-cover m-character-cover-placeholder" aria-hidden="true">
+                      <span>NO IMAGE</span>
                     </div>
-                  </button>
-                </li>
-              );
-            })
-          ) : (
-            <li className="m-muted">{props.loading ? "正在读取角色卡目录..." : "当前目录暂无可识别角色卡文件"}</li>
-          )}
-        </ul>
-      )}
+                  )}
+                  <div className="m-character-info">
+                    <div className="m-character-fields">
+                      <p className="m-character-field-label">{"\u59d3\u540d / NAME"}</p>
+                      <p className="m-character-field-value m-break">{displayName}</p>
+                      <p className="m-character-field-label">{"\u7c7b\u578b / TYPE"}</p>
+                      <p className="m-character-field-value">{item.cardType}</p>
+                      <p className="m-character-field-label">{"\u6587\u4ef6\u5927\u5c0f / SIZE"}</p>
+                      <p className="m-character-field-value">{toReadableSize(item.size)}</p>
+                    </div>
+                  </div>
+                </article>
+              </li>
+            );
+          })
+        ) : (
+          <li className="m-muted">{props.loading ? "\u6b63\u5728\u8bfb\u53d6\u89d2\u8272\u5361\u76ee\u5f55..." : "\u5f53\u524d\u76ee\u5f55\u6682\u65e0\u53ef\u8bc6\u522b\u89d2\u8272\u5361\u6587\u4ef6"}</li>
+        )}
+      </ul>
     </section>
   );
 }
 
 interface PresetPanelProps {
   baseRelDir: string;
+  loading: boolean;
   files: PresetFileItem[];
-  selectedRelPath: string;
-  readOnly: boolean;
-  rawError: string;
-  settings: PresetBasicSettings;
   onRefresh: () => void;
-  onSelectFile: (relPath: string) => void;
-  onPatchSettings: (patch: Partial<PresetBasicSettings>) => void;
-  onSave: () => void;
 }
 
 export function PresetPanel(props: PresetPanelProps): React.ReactNode {
-  const selectedFileName = props.selectedRelPath.split("/").pop() ?? "";
-
   return (
     <section className="m-card m-preset-panel">
-      <h2>OpenAI 预设</h2>
-      <p className="m-muted m-break">目录：{props.baseRelDir || "未找到 OpenAI Settings 目录"}</p>
+      <h2>{"OpenAI \u9884\u8bbe"}</h2>
+      <p className="m-muted m-break">{"\u76ee\u5f55\uff1a"}{props.baseRelDir || "\u672a\u627e\u5230 OpenAI Settings \u76ee\u5f55"}</p>
       <div className="m-actions-row m-preset-toolbar">
         <button type="button" className="m-btn m-btn-ghost" onClick={props.onRefresh}>
-          刷新预设
+          {"\u5237\u65b0\u9884\u8bbe"}
         </button>
-        <button
-          type="button"
-          className="m-btn"
-          onClick={props.onSave}
-          disabled={!props.selectedRelPath || Boolean(props.rawError) || props.readOnly}
-        >
-          保存预设
-        </button>
+        <span className="m-muted">{"JSON \u6587\u4ef6\uff1a"}{props.files.length}</span>
       </div>
 
       <div className="m-preset-layout">
         <article className="m-preset-pane">
-          <p className="m-muted">预设条目</p>
+          <p className="m-muted">{"\u9884\u8bbe\u6761\u76ee"}</p>
           <ul className="m-list-clean m-preset-file-list">
             {props.files.length > 0 ? (
               props.files.map((item) => (
                 <li key={item.relPath}>
-                  <button
-                    type="button"
-                    className={`m-preset-file-btn ${props.selectedRelPath === item.relPath ? "active" : ""}`}
-                    onClick={() => props.onSelectFile(item.relPath)}
-                  >
-                    <span className="m-break">{item.name}</span>
-                    <strong>{typeof item.size === "number" ? `${Math.max(1, Math.round(item.size / 1024))} KB` : "-"}</strong>
-                  </button>
+                  <article className="m-preset-file-item">
+                    <div className="m-preset-file-item-copy">
+                      <span className="m-break">{item.name}</span>
+                      <p className="m-muted m-break">{item.relPath}</p>
+                    </div>
+                    <strong>{typeof item.size === "number" ? String(Math.max(1, Math.round(item.size / 1024))) + " KB" : "-"}</strong>
+                  </article>
                 </li>
               ))
             ) : (
-              <li className="m-muted">当前目录没有预设文件</li>
+              <li className="m-muted">{props.loading ? "\u6b63\u5728\u8bfb\u53d6\u9884\u8bbe\u76ee\u5f55..." : "\u5f53\u524d\u76ee\u5f55\u6ca1\u6709\u9884\u8bbe\u6587\u4ef6"}</li>
             )}
           </ul>
-        </article>
-
-        <article className="m-preset-pane">
-          <p className="m-muted">基本设置{selectedFileName ? ` · ${selectedFileName}` : ""}</p>
-          <div className="m-preset-setting-grid">
-            <label>
-              Temperature
-              <input
-                className="m-input"
-                value={props.settings.temperature}
-                onChange={(event) => props.onPatchSettings({ temperature: event.target.value })}
-              />
-            </label>
-            <label>
-              Top P
-              <input
-                className="m-input"
-                value={props.settings.topP}
-                onChange={(event) => props.onPatchSettings({ topP: event.target.value })}
-              />
-            </label>
-            <label>
-              Frequency Penalty
-              <input
-                className="m-input"
-                value={props.settings.frequencyPenalty}
-                onChange={(event) => props.onPatchSettings({ frequencyPenalty: event.target.value })}
-              />
-            </label>
-            <label>
-              Presence Penalty
-              <input
-                className="m-input"
-                value={props.settings.presencePenalty}
-                onChange={(event) => props.onPatchSettings({ presencePenalty: event.target.value })}
-              />
-            </label>
-            <label>
-              Max Context
-              <input
-                className="m-input"
-                value={props.settings.maxContext}
-                onChange={(event) => props.onPatchSettings({ maxContext: event.target.value })}
-              />
-            </label>
-            <label>
-              Max Response Tokens
-              <input
-                className="m-input"
-                value={props.settings.maxResponseTokens}
-                onChange={(event) => props.onPatchSettings({ maxResponseTokens: event.target.value })}
-              />
-            </label>
-          </div>
-
-          <label className="m-check">
-            <input
-              type="checkbox"
-              checked={props.settings.streaming}
-              onChange={(event) => props.onPatchSettings({ streaming: event.target.checked })}
-            />
-            启用流式输出
-          </label>
-
         </article>
       </div>
     </section>

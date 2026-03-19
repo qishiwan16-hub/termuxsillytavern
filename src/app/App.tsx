@@ -4,7 +4,6 @@ import {
   apiGet,
   apiPatch,
   apiPost,
-  apiPut,
   clearAuthToken,
   downloadZip,
   getAuthToken,
@@ -34,10 +33,8 @@ import type {
   DirectoryBrowseResp,
   DirectoryEntry,
   Instance,
-  InstanceFileResp,
   InstanceTreeResp,
   PanelKey,
-  PresetBasicSettings,
   PresetFileItem,
   QueueJob,
   ResourceResp,
@@ -46,82 +43,6 @@ import type {
 } from "./types";
 
 const LegacyApp = lazy(() => import("../LegacyApp").then((mod) => ({ default: mod.LegacyApp })));
-
-const DEFAULT_PRESET_SETTINGS: PresetBasicSettings = {
-  temperature: "",
-  topP: "",
-  frequencyPenalty: "",
-  presencePenalty: "",
-  maxContext: "",
-  maxResponseTokens: "",
-  streaming: false
-};
-
-function pickPresetTarget(obj: Record<string, unknown>): Record<string, unknown> {
-  const nestedKeys = ["completion", "openai_setting", "openaiSettings", "settings"];
-  for (const key of nestedKeys) {
-    const value = obj[key];
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      return value as Record<string, unknown>;
-    }
-  }
-  return obj;
-}
-
-function findValue(target: Record<string, unknown>, keys: string[]): unknown {
-  for (const key of keys) {
-    if (key in target) return target[key];
-  }
-  return undefined;
-}
-
-function valueToText(input: unknown): string {
-  if (typeof input === "number" && Number.isFinite(input)) return String(input);
-  if (typeof input === "string") return input;
-  return "";
-}
-
-function valueToBool(input: unknown): boolean {
-  if (typeof input === "boolean") return input;
-  if (typeof input === "string") {
-    const lower = input.trim().toLowerCase();
-    return lower === "true" || lower === "1" || lower === "yes";
-  }
-  if (typeof input === "number") {
-    return input !== 0;
-  }
-  return false;
-}
-
-function extractPresetSettings(content: string): { settings: PresetBasicSettings; error: string } {
-  if (!content.trim()) {
-    return { settings: { ...DEFAULT_PRESET_SETTINGS }, error: "" };
-  }
-  try {
-    const parsed = JSON.parse(content);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { settings: { ...DEFAULT_PRESET_SETTINGS }, error: "预设文件不是 JSON 对象" };
-    }
-    const target = pickPresetTarget(parsed as Record<string, unknown>);
-    return {
-      settings: {
-        temperature: valueToText(findValue(target, ["temperature", "temp"])),
-        topP: valueToText(findValue(target, ["top_p", "topP"])),
-        frequencyPenalty: valueToText(findValue(target, ["frequency_penalty", "frequencyPenalty"])),
-        presencePenalty: valueToText(findValue(target, ["presence_penalty", "presencePenalty"])),
-        maxContext: valueToText(findValue(target, ["max_context", "maxContext", "max_prompt_tokens"])),
-        maxResponseTokens: valueToText(findValue(target, ["max_response_tokens", "max_tokens", "maxResponseTokens"])),
-        streaming: valueToBool(findValue(target, ["stream", "streaming"]))
-      },
-      error: ""
-    };
-  } catch (error) {
-    return {
-      settings: { ...DEFAULT_PRESET_SETTINGS },
-      error: error instanceof Error ? `JSON 解析失败：${error.message}` : "JSON 解析失败"
-    };
-  }
-}
 
 function hasStrictUserDataRoot(rootPath: string | undefined): boolean {
   const normalized = (rootPath ?? "").replace(/\\/g, "/").replace(/\/+$/, "");
@@ -142,68 +63,6 @@ function inferCharacterBaseRelDir(rootPath: string | undefined): string {
     return "";
   }
   return "characters";
-}
-
-function upsertNumericSetting(target: Record<string, unknown>, aliases: string[], nextValue: string): void {
-  const existing = aliases.find((key) => key in target);
-  const key = existing ?? aliases[0];
-  const trimmed = nextValue.trim();
-  if (!trimmed) {
-    for (const alias of aliases) {
-      delete target[alias];
-    }
-    return;
-  }
-  const asNumber = Number(trimmed);
-  target[key] = Number.isFinite(asNumber) ? asNumber : trimmed;
-}
-
-function upsertBooleanSetting(target: Record<string, unknown>, aliases: string[], value: boolean): void {
-  const existing = aliases.find((key) => key in target);
-  const key = existing ?? aliases[0];
-  target[key] = value;
-}
-
-function applySettingsToContent(content: string, patch: Partial<PresetBasicSettings>): {
-  content: string;
-  settings: PresetBasicSettings;
-  error: string;
-} {
-  const parsed = extractPresetSettings(content);
-  const merged: PresetBasicSettings = {
-    ...parsed.settings,
-    ...patch
-  };
-  if (parsed.error) {
-    return {
-      content,
-      settings: merged,
-      error: parsed.error
-    };
-  }
-  try {
-    const json = JSON.parse(content) as Record<string, unknown>;
-    const target = pickPresetTarget(json);
-    upsertNumericSetting(target, ["temperature", "temp"], merged.temperature);
-    upsertNumericSetting(target, ["top_p", "topP"], merged.topP);
-    upsertNumericSetting(target, ["frequency_penalty", "frequencyPenalty"], merged.frequencyPenalty);
-    upsertNumericSetting(target, ["presence_penalty", "presencePenalty"], merged.presencePenalty);
-    upsertNumericSetting(target, ["max_context", "maxContext", "max_prompt_tokens"], merged.maxContext);
-    upsertNumericSetting(target, ["max_response_tokens", "max_tokens", "maxResponseTokens"], merged.maxResponseTokens);
-    upsertBooleanSetting(target, ["stream", "streaming"], merged.streaming);
-
-    return {
-      content: JSON.stringify(json, null, 2),
-      settings: merged,
-      error: ""
-    };
-  } catch (error) {
-    return {
-      content,
-      settings: merged,
-      error: error instanceof Error ? `JSON 解析失败：${error.message}` : "JSON 解析失败"
-    };
-  }
 }
 
 function collectPresetFiles(nodes: Array<{ name: string; relPath: string; isDir: boolean; size?: number; children?: unknown }>): PresetFileItem[] {
@@ -290,17 +149,11 @@ export function App() {
   const [presetLoading, setPresetLoading] = useState(false);
   const [presetBaseRelDir, setPresetBaseRelDir] = useState("");
   const [presetFiles, setPresetFiles] = useState<PresetFileItem[]>([]);
-  const [presetSelectedRelPath, setPresetSelectedRelPath] = useState("");
-  const [presetReadOnly, setPresetReadOnly] = useState(false);
-  const [presetRawContent, setPresetRawContent] = useState("");
-  const [presetRawError, setPresetRawError] = useState("");
-  const [presetSettings, setPresetSettings] = useState<PresetBasicSettings>({ ...DEFAULT_PRESET_SETTINGS });
   const [presetJsonCount, setPresetJsonCount] = useState(0);
 
   const [characterLoading, setCharacterLoading] = useState(false);
   const [characterBaseRelDir, setCharacterBaseRelDir] = useState("");
   const [characterCards, setCharacterCards] = useState<CharacterCardItem[]>([]);
-  const [characterSelectedRelPath, setCharacterSelectedRelPath] = useState("");
   const [characterCardCount, setCharacterCardCount] = useState(0);
 
   const currentInstance = useMemo(() => instances.find((item) => item.id === instanceId), [instances, instanceId]);
@@ -835,27 +688,6 @@ export function App() {
     });
   }
 
-  async function loadPresetFile(relPath: string, baseRelDir: string): Promise<void> {
-    if (!instanceId || !relPath || !baseRelDir) return;
-    setPresetLoading(true);
-    try {
-      const fullPath = `${baseRelDir}/${relPath}`.replace(/\\/g, "/").replace(/^\/+/, "");
-      const file = await apiGet<InstanceFileResp>(
-        `/api/instances/${instanceId}/file?path=${encodeURIComponent(fullPath)}`
-      );
-      setPresetSelectedRelPath(relPath);
-      setPresetReadOnly(Boolean(file.readOnly));
-      setPresetRawContent(file.content);
-      const parsed = extractPresetSettings(file.content);
-      setPresetSettings(parsed.settings);
-      setPresetRawError(parsed.error);
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : String(error));
-    } finally {
-      setPresetLoading(false);
-    }
-  }
-
   async function refreshPresetCount(target?: { instanceId?: string; rootPath?: string }): Promise<void> {
     const targetInstanceId = target?.instanceId ?? instanceId;
     const targetRootPath = target?.rootPath ?? currentInstance?.rootPath;
@@ -904,12 +736,12 @@ export function App() {
     }
   }
 
-  async function refreshCharacterPanel(preferredRelPath?: string): Promise<void> {
+  async function refreshCharacterPanel(): Promise<void> {
     if (!instanceId) {
       setCharacterBaseRelDir("");
       setCharacterCards([]);
-      setCharacterSelectedRelPath("");
       setCharacterCardCount(0);
+      setCharacterLoading(false);
       return;
     }
 
@@ -917,15 +749,15 @@ export function App() {
     setCharacterBaseRelDir(baseRelDir);
     if (!baseRelDir) {
       setCharacterCards([]);
-      setCharacterSelectedRelPath("");
       setCharacterCardCount(0);
+      setCharacterLoading(false);
       return;
     }
 
     setCharacterLoading(true);
     try {
       const tree = await apiGet<InstanceTreeResp>(
-        `/api/instances/${instanceId}/tree?path=${encodeURIComponent(baseRelDir)}`
+        "/api/instances/" + instanceId + "/tree?path=" + encodeURIComponent(baseRelDir)
       );
       const files = collectCharacterCardFiles(tree.nodes).map((item) => {
         if (item.ext === "json") {
@@ -934,8 +766,12 @@ export function App() {
             imageUrl: ""
           };
         }
-        const fullPath = `${baseRelDir}/${item.relPath}`.replace(/\\/g, "/").replace(/^\/+/, "");
-        const imageUrl = `/api/resources/content?source=instance&instanceId=${encodeURIComponent(instanceId)}&relPath=${encodeURIComponent(fullPath)}`;
+        const fullPath = (baseRelDir + "/" + item.relPath).replace(/\\/g, "/").replace(/^\/+/, "");
+        const imageUrl =
+          "/api/resources/content?source=instance&instanceId=" +
+          encodeURIComponent(instanceId) +
+          "&relPath=" +
+          encodeURIComponent(fullPath);
         return {
           ...item,
           imageUrl
@@ -943,19 +779,8 @@ export function App() {
       });
       setCharacterCards(files);
       setCharacterCardCount(files.length);
-      if (files.length === 0) {
-        setCharacterSelectedRelPath("");
-        return;
-      }
-
-      const targetRelPath =
-        (preferredRelPath && files.some((it) => it.relPath === preferredRelPath) && preferredRelPath) ||
-        (characterSelectedRelPath && files.some((it) => it.relPath === characterSelectedRelPath) && characterSelectedRelPath) ||
-        files[0].relPath;
-      setCharacterSelectedRelPath(targetRelPath);
     } catch (error) {
       setCharacterCards([]);
-      setCharacterSelectedRelPath("");
       setCharacterCardCount(0);
       setToast(error instanceof Error ? error.message : String(error));
     } finally {
@@ -963,15 +788,12 @@ export function App() {
     }
   }
 
-  async function refreshPresetPanel(preferredRelPath?: string): Promise<void> {
+  async function refreshPresetPanel(): Promise<void> {
     if (!instanceId) {
       setPresetBaseRelDir("");
       setPresetFiles([]);
-      setPresetSelectedRelPath("");
-      setPresetRawContent("");
-      setPresetRawError("");
-      setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
       setPresetJsonCount(0);
+      setPresetLoading(false);
       return;
     }
     const baseRelDir = inferPresetBaseRelDir(currentInstance?.rootPath);
@@ -979,88 +801,26 @@ export function App() {
 
     if (!baseRelDir) {
       setPresetFiles([]);
-      setPresetSelectedRelPath("");
-      setPresetRawContent("");
-      setPresetRawError("");
-      setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
-      setPresetReadOnly(false);
       setPresetJsonCount(0);
+      setPresetLoading(false);
       return;
     }
 
     setPresetLoading(true);
     try {
       const tree = await apiGet<InstanceTreeResp>(
-        `/api/instances/${instanceId}/tree?path=${encodeURIComponent(baseRelDir)}`
+        "/api/instances/" + instanceId + "/tree?path=" + encodeURIComponent(baseRelDir)
       );
       const files = collectPresetFiles(tree.nodes);
-
       setPresetFiles(files);
       setPresetJsonCount(files.length);
-      if (files.length === 0) {
-        setPresetSelectedRelPath("");
-        setPresetRawContent("");
-        setPresetRawError("");
-        setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
-        setPresetReadOnly(false);
-        return;
-      }
-
-      const targetRelPath =
-        (preferredRelPath && files.some((it) => it.relPath === preferredRelPath) && preferredRelPath) ||
-        (presetSelectedRelPath && files.some((it) => it.relPath === presetSelectedRelPath) && presetSelectedRelPath) ||
-        files[0].relPath;
-
-      await loadPresetFile(targetRelPath, baseRelDir);
     } catch (error) {
       setPresetFiles([]);
-      setPresetSelectedRelPath("");
-      setPresetRawContent("");
-      setPresetRawError("");
-      setPresetSettings({ ...DEFAULT_PRESET_SETTINGS });
       setPresetJsonCount(0);
       setToast(error instanceof Error ? error.message : String(error));
     } finally {
       setPresetLoading(false);
     }
-  }
-
-  function handlePresetPatch(patch: Partial<PresetBasicSettings>): void {
-    const result = applySettingsToContent(presetRawContent, patch);
-    setPresetRawContent(result.content);
-    setPresetSettings(result.settings);
-    setPresetRawError(result.error);
-  }
-
-  async function savePreset(): Promise<void> {
-    await safe(async () => {
-      if (!instanceId) {
-        setToast("请先选择酒馆项目");
-        return;
-      }
-      if (!presetBaseRelDir || !presetSelectedRelPath) {
-        setToast("请先选择预设文件");
-        return;
-      }
-      if (presetReadOnly) {
-        setToast("文件为只读，无法保存");
-        return;
-      }
-      if (presetRawError) {
-        setToast("JSON 格式有误，无法保存");
-        return;
-      }
-
-      const relPath = `${presetBaseRelDir}/${presetSelectedRelPath}`.replace(/\\/g, "/").replace(/^\/+/, "");
-      await apiPut(`/api/instances/${instanceId}/file`, {
-        relPath,
-        content: presetRawContent,
-        queueIfRunning: true,
-        createBackup: true
-      });
-      setToast("预设已保存");
-      await refreshPresetPanel(presetSelectedRelPath);
-    });
   }
 
   async function patchSettings(patch: Partial<AppSettings>): Promise<void> {
@@ -1091,12 +851,12 @@ export function App() {
   function refreshAll(): void {
     void loadAll();
     if (activePanel === "preset") {
-      void refreshPresetPanel(presetSelectedRelPath);
+      void refreshPresetPanel();
     }
     if (activePanel === "character") {
-      void refreshCharacterPanel(characterSelectedRelPath);
+      void refreshCharacterPanel();
     }
-    setToast("已刷新");
+    setToast("\u5df2\u5237\u65b0");
   }
 
   useEffect(() => {
@@ -1154,27 +914,14 @@ export function App() {
         baseRelDir={characterBaseRelDir}
         loading={characterLoading}
         cards={characterCards}
-        selectedRelPath={characterSelectedRelPath}
-        onRefresh={() => void refreshCharacterPanel(characterSelectedRelPath)}
-        onEnterCard={(relPath) => {
-          setCharacterSelectedRelPath(relPath);
-          setToast("已进入角色卡");
-        }}
+        onRefresh={() => void refreshCharacterPanel()}
       />
     ) : activePanel === "preset" ? (
       <PresetPanel
         baseRelDir={presetBaseRelDir}
+        loading={presetLoading}
         files={presetFiles}
-        selectedRelPath={presetSelectedRelPath}
-        readOnly={presetReadOnly}
-        rawError={presetRawError}
-        settings={presetSettings}
-        onRefresh={() => void refreshPresetPanel(presetSelectedRelPath)}
-        onSelectFile={(relPath) => {
-          void loadPresetFile(relPath, presetBaseRelDir);
-        }}
-        onPatchSettings={handlePresetPatch}
-        onSave={() => void savePreset()}
+        onRefresh={() => void refreshPresetPanel()}
       />
     ) : activePanel === "queue" ? (
       <QueuePanel queue={queue} />
@@ -1268,7 +1015,6 @@ export function App() {
         homeStatsTop={homeStatsTop}
         hasResource={homeCenterRows.some((item) => item.value > 0)}
         onOpenProfile={() => setShowProfileEditor(true)}
-        onRefresh={refreshAll}
         onOpenPanel={setActivePanel}
         formatDate={toShortDate}
       />

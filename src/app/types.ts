@@ -114,15 +114,6 @@ export interface CharacterCardItem {
   imageUrl?: string;
 }
 
-export interface PresetBasicSettings {
-  temperature: string;
-  topP: string;
-  frequencyPenalty: string;
-  presencePenalty: string;
-  maxContext: string;
-  maxResponseTokens: string;
-  streaming: boolean;
-}
 
 export interface ResourceStatItem {
   key: string;
